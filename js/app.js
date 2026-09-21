@@ -62,7 +62,7 @@ async function holdScreen(on) {
   $('#awake-badge').classList.toggle('is-on', !!wakeLock && live);
   if (on && !wakeLock && live && !warnedAwake) {
     warnedAwake = true;
-    toast('удержать экран не удалось — телефон может гаснуть, и сон засчитается разрывом', 6000);
+    toast('экран удержать не вышло — его сон станет разрывом', 5000);
   }
 }
 
@@ -107,12 +107,17 @@ const stage = new Stage($('#vessel'), {
   onHover: showTip
 });
 
+function syncNav() {
+  const v = body.dataset.view;
+  document.querySelectorAll('.nav [data-go]').forEach((b) =>
+    b.classList.toggle('is-on', b.dataset.go === v || (v === 'method' && b.dataset.go === 'intro'))
+  );
+}
+
 function go(view) {
   if (view === body.dataset.view) return;
   body.dataset.view = view;
-  document.querySelectorAll('.nav [data-go]').forEach((b) =>
-    b.classList.toggle('is-on', b.dataset.go === view)
-  );
+  syncNav();
   if (view === 'archive') renderArchive();
   if (view === 'room') renderRoom();
   if (view === 'ritual') renderOath();
@@ -808,6 +813,7 @@ if (!standalone && /iphone|ipad|ipod/i.test(navigator.userAgent)) {
   $('#install').hidden = false;
 }
 
+syncNav();
 renderCircle();
 $('#task').value = cfg.lastTask || '';
 if (cfg.lastMin) {

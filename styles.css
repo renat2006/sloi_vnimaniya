@@ -12,7 +12,9 @@
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+button, input, label, .chip { touch-action: manipulation; }
 
 html, body { height: 100%; overflow: hidden; }
 
@@ -30,6 +32,7 @@ body {
 body[data-drift="1"] { filter: saturate(0.62) brightness(0.86); }
 
 button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+.ghost:active, .cta:active, .pick:active, .tab:active, .chip:active { opacity: 0.6; }
 
 .frame {
   position: fixed; inset: 13px; z-index: 60; pointer-events: none;
@@ -413,9 +416,47 @@ body[data-view="room"] #view-room { opacity: 1; pointer-events: auto; visibility
   .ro dd { font-size: 24px; }
 }
 @media (max-width: 980px) {
-  .view { padding: 86px 20px calc(26px + env(safe-area-inset-bottom)); overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .view { padding: 66px 20px calc(78px + env(safe-area-inset-bottom)); overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+
 
   .topbar { padding: 6px 20px; }
+  .topbar::before { inset: 0 0 -20px; }
+  .nav {
+    position: fixed; left: 0; right: 0; bottom: 0; top: auto; z-index: 50;
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 0;
+    background: rgba(10, 12, 15, 0.92); backdrop-filter: blur(16px);
+    border-top: 1px solid var(--line);
+    padding: 0 0 env(safe-area-inset-bottom);
+  }
+  .nav .lnk {
+    padding: 17px 4px 16px; text-align: center; font-size: 9.5px; letter-spacing: 0.14em;
+    border-top: 2px solid transparent; margin-top: -1px;
+  }
+  .nav .lnk::after { display: none; }
+  .nav .lnk.is-on { color: var(--bone); border-top-color: var(--warm); background: rgba(232, 226, 214, 0.04); }
+  .nav .sound { display: none; }
+  .live-dot { margin-left: 5px; }
+
+  .ask { place-items: end stretch; }
+  .ask-box {
+    width: 100%; border-left: 0; border-right: 0; border-bottom: 0;
+    padding: 20px 22px calc(22px + env(safe-area-inset-bottom));
+    transform: translateY(100%); transition: transform 0.45s var(--ease);
+  }
+  .ask.is-on .ask-box { transform: none; }
+  .ask-box::before {
+    content: ""; display: block; width: 38px; height: 4px; border-radius: 2px;
+    background: var(--line); margin: 0 auto 16px;
+  }
+  .ask-box h3 { font-size: 28px; margin: 10px 0 6px; }
+  .ask-sub { margin-bottom: 16px; }
+  .ask-actions { margin-top: 18px; padding-top: 16px; }
+  .ask-actions .ghost { flex: 1; text-align: center; }
+
+  body[data-sheet="1"] .rail--right::before {
+    content: ""; display: block; width: 38px; height: 4px; border-radius: 2px;
+    background: var(--line); margin: 0 auto 14px;
+  }
   .lnk { padding: 14px 0; }
   .chip-add .ghost { padding: 14px 18px; }
   .switch { padding: 6px 0; }
@@ -444,7 +485,7 @@ body[data-view="room"] #view-room { opacity: 1; pointer-events: auto; visibility
   .rule { margin-top: 8px; }
   .oath { padding-left: 16px; }
   .ritual-go {
-    position: sticky; bottom: calc(-26px - env(safe-area-inset-bottom));
+    position: sticky; bottom: calc(-78px - env(safe-area-inset-bottom));
     margin: 2px 0 0; padding: 12px 0 calc(24px + env(safe-area-inset-bottom));
     background: linear-gradient(to top, var(--ink) 62%, rgba(8, 9, 11, 0.92) 85%, rgba(8, 9, 11, 0));
     flex-wrap: wrap; gap: 12px 14px; border-top: 1px solid var(--line);
@@ -452,14 +493,14 @@ body[data-view="room"] #view-room { opacity: 1; pointer-events: auto; visibility
   .ritual-go .picks { width: 100%; justify-content: space-between; }
   .ritual-go .cta { flex: 1; }
   .picks-unit { margin-left: auto; text-align: right; }
-  .view--ritual, .view--method { display: block; padding-top: 86px; }
+  .view--ritual, .view--method { display: block; padding-top: 66px; }
   .method-body { padding-top: 20px; }
 
   .view--stage {
     display: grid; grid-template-columns: minmax(0, 1fr);
     grid-template-rows: minmax(140px, 1fr) auto auto;
     gap: 14px; overflow: hidden;
-    padding: 64px 20px calc(16px + env(safe-area-inset-bottom));
+    padding: 58px 20px calc(72px + env(safe-area-inset-bottom));
   }
   .vessel-wrap { grid-row: 1; height: auto; min-height: 0; flex: none; }
   .rail--left { grid-row: 2; display: grid; gap: 0; }
@@ -482,7 +523,7 @@ body[data-view="room"] #view-room { opacity: 1; pointer-events: auto; visibility
   #journal-toggle { display: block; flex: 0 0 34%; }
 
   body[data-sheet="1"] .rail--right {
-    position: fixed; left: 0; right: 0; bottom: 0; z-index: 70;
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 80;
     background: var(--ink2); border-top: 1px solid var(--line);
     padding: 16px 20px calc(20px + env(safe-area-inset-bottom));
     max-height: 72vh; display: flex; flex-direction: column;
@@ -516,17 +557,18 @@ body[data-view="room"] #view-room { opacity: 1; pointer-events: auto; visibility
   .day-stack { gap: 5px; }
   .day-stack::after { left: -10px; right: -10px; }
 
-  .toast { bottom: auto; top: 62px; max-width: calc(100vw - 40px); text-align: center; }
+  .toast { bottom: auto; top: 58px; max-width: calc(100vw - 40px); text-align: center; }
   .toast.is-on { transform: translate(-50%, 0); }
 }
 
 @media (max-width: 680px) {
-  .topbar { padding: 18px 16px; }
+  .topbar { padding: 6px 16px; }
   .brand .txt { display: none; }
-  .nav { gap: 14px; }
-  .lnk { font-size: 10px; letter-spacing: 0.16em; }
+  .nav .lnk { font-size: 9px; letter-spacing: 0.1em; }
   .sound .txt { display: none; }
-  .view { padding: 74px 18px 24px; }
+  .view { padding: 66px 18px calc(78px + env(safe-area-inset-bottom)); }
+  .view--ritual, .view--method { padding-top: 66px; }
+  .view--stage { padding: 58px 18px calc(72px + env(safe-area-inset-bottom)); }
   h1 { font-size: clamp(44px, 14vw, 68px); }
   .intro-grid { gap: 34px; }
   .legend li { grid-template-columns: 22px 1fr; row-gap: 2px; }
@@ -534,7 +576,7 @@ body[data-view="room"] #view-room { opacity: 1; pointer-events: auto; visibility
   .starter { gap: 18px; }
   .arc-grid { grid-template-columns: 1fr; }
   .ritual-go { flex-wrap: wrap; }
-  .ask-box { padding: 24px; }
+  .ask-box { padding: 20px 18px calc(22px + env(safe-area-inset-bottom)); }
   .arc-tools { flex-wrap: wrap; }
 }
 
