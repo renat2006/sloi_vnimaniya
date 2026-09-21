@@ -317,7 +317,7 @@ function renderWall() {
   if (!presence.joined || !peers.length) {
     el.innerHTML = presence.live
       ? '<p class="wall-empty">В зале пусто. Войдите — и ваша колба встанет здесь.</p>'
-      : '<p class="wall-empty">Живой зал выключен. Запустите node server.js — и колбы<br>тех, кто открыл ту же страницу, появятся рядом.</p>';
+      : '<p class="wall-empty">Живой зал выключен: страница отдана статикой.<br>Запустите node server.js рядом — или впишите адрес зала в js/config.js.</p>';
     return;
   }
   peers.forEach((p) => {
@@ -424,7 +424,7 @@ $('#witness').addEventListener('change', (e) => {
   if (wantWitness && !presence.live) {
     e.target.checked = false;
     wantWitness = false;
-    toast('живой зал выключен — запустите node server.js');
+    toast('зал не отвечает — нужен server.js или адрес зала в config.js');
   }
 });
 $('#finish').addEventListener('click', () => finish(false));
@@ -473,7 +473,7 @@ $('#join').addEventListener('click', async () => {
     return;
   }
   if (!presence.live && !(await presence.probe())) {
-    toast('живой зал выключен — запустите node server.js');
+    toast('зал не отвечает — нужен server.js или адрес зала в config.js');
     return;
   }
   presence.join(cfg.room, ME, {

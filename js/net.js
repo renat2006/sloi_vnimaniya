@@ -1,3 +1,5 @@
+import { endpoint } from './config.js';
+
 const BEAT_MS = 3000;
 
 export class Presence {
@@ -16,7 +18,7 @@ export class Presence {
     try {
       const ctl = new AbortController();
       const kill = setTimeout(() => ctl.abort(), 1800);
-      const r = await fetch('presence/health', { cache: 'no-store', signal: ctl.signal });
+      const r = await fetch(endpoint('presence/health'), { cache: 'no-store', signal: ctl.signal });
       clearTimeout(kill);
       if (!r.ok) return false;
       const j = await r.json();
@@ -34,7 +36,9 @@ export class Presence {
     this.id = id;
     this.state = { ...state };
     this.joined = true;
-    const url = `presence/stream?room=${encodeURIComponent(room)}&id=${encodeURIComponent(id)}`;
+    const url = endpoint(
+      `presence/stream?room=${encodeURIComponent(room)}&id=${encodeURIComponent(id)}`
+    );
     this.es = new EventSource(url);
     this.es.onmessage = (e) => {
       try {
@@ -59,7 +63,7 @@ export class Presence {
 
   push() {
     if (!this.joined) return;
-    fetch('presence/state', {
+    fetch(endpoint('presence/state'), {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ room: this.room, id: this.id, ...this.state }),
@@ -73,7 +77,7 @@ export class Presence {
     clearInterval(this.timer);
     this.timer = null;
     if (this.joined) {
-      fetch('presence/state', {
+      fetch(endpoint('presence/state'), {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ room: this.room, id: this.id, bye: true }),

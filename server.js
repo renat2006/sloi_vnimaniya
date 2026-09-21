@@ -4,6 +4,7 @@ const path = require('path');
 const url = require('url');
 
 const PORT = process.env.PORT ? +process.env.PORT : 4173;
+const HOST = process.env.HOST || '0.0.0.0';
 const ROOT = __dirname;
 const STALE_MS = 12000;
 
@@ -74,12 +75,24 @@ function sendFile(res, file) {
   });
 }
 
+const CORS = {
+  'access-control-allow-origin': '*',
+  'access-control-allow-methods': 'GET, POST, OPTIONS',
+  'access-control-allow-headers': 'content-type'
+};
+
 const server = http.createServer((req, res) => {
   const parsed = url.parse(req.url, true);
   const route = parsed.pathname;
 
+  if (route.startsWith('/presence/') && req.method === 'OPTIONS') {
+    res.writeHead(204, { ...CORS, 'access-control-max-age': '86400' });
+    res.end();
+    return;
+  }
+
   if (route === '/presence/health') {
-    res.writeHead(200, { 'content-type': 'application/json' });
+    res.writeHead(200, { ...CORS, 'content-type': 'application/json' });
     res.end(JSON.stringify({ ok: true, rooms: rooms.size }));
     return;
   }
@@ -88,6 +101,7 @@ const server = http.createServer((req, res) => {
     const name = String(parsed.query.room || 'зал').slice(0, 40);
     const r = room(name);
     res.writeHead(200, {
+      ...CORS,
       'content-type': 'text/event-stream; charset=utf-8',
       'cache-control': 'no-cache',
       connection: 'keep-alive'
@@ -126,10 +140,10 @@ const server = http.createServer((req, res) => {
             ts: Date.now()
           });
         broadcast(name);
-        res.writeHead(204);
+        res.writeHead(204, CORS);
         res.end();
       } catch {
-        res.writeHead(400);
+        res.writeHead(400, CORS);
         res.end();
       }
     });
@@ -146,7 +160,7 @@ const server = http.createServer((req, res) => {
   sendFile(res, file);
 });
 
-server.listen(PORT, () => {
+server.listen(PORT, HOST, () => {
   console.log(`Слои внимания · http://localhost:${PORT}`);
   console.log('зал присутствия включён');
 });
