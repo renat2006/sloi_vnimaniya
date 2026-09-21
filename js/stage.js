@@ -518,6 +518,7 @@ export class Stage {
         this.parts.splice(i, 1);
         if (p.y >= land) {
           this.flashes.push({ x: p.x, y: land, life: 1, cold: p.cold });
+          this.hooks.onLand && this.hooks.onLand(p.cold);
           if (Math.random() < 0.7) {
             const dir = Math.sign(p.x - g.cx) || 1;
             this.motes.push({

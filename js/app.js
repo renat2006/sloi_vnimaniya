@@ -104,7 +104,8 @@ const presence = new Presence({
 const stage = new Stage($('#vessel'), {
   onTick: hud,
   onFull: () => finish(true),
-  onHover: showTip
+  onHover: showTip,
+  onLand: (cold) => amb.landing(cold)
 });
 
 function syncNav() {

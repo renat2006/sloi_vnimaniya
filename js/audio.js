@@ -54,12 +54,22 @@ export class Ambience {
     breath.connect(depth).connect(breathGain.gain);
     breath.start();
 
+    const music = ctx.createGain();
+    music.gain.value = 1;
+    music.connect(breathGain);
+    this.music = music;
+
     const air = ctx.createBiquadFilter();
     air.type = 'lowpass';
     air.frequency.value = 2200;
     air.Q.value = 0.4;
-    air.connect(breathGain);
+    air.connect(music);
     this.air = air;
+
+    const sand = ctx.createGain();
+    sand.gain.value = 1;
+    sand.connect(master);
+    this.sand = sand;
 
     const makeVoice = (ratio, type, level, pan) => {
       const osc = ctx.createOscillator();
@@ -101,14 +111,42 @@ export class Ambience {
     src.loop = true;
     const bp = ctx.createBiquadFilter();
     bp.type = 'bandpass';
-    bp.frequency.value = 2100;
-    bp.Q.value = 0.7;
+    bp.frequency.value = 900;
+    bp.Q.value = 1.6;
     const hiss = ctx.createGain();
     hiss.gain.value = 0;
-    src.connect(bp).connect(hiss).connect(master);
+    src.connect(bp).connect(hiss).connect(sand);
     src.start();
     this.hiss = hiss;
     this.bp = bp;
+
+    const src2 = ctx.createBufferSource();
+    src2.buffer = buf;
+    src2.loop = true;
+    src2.playbackRate.value = 0.55;
+    const body = ctx.createBiquadFilter();
+    body.type = 'lowpass';
+    body.frequency.value = 220;
+    body.Q.value = 3.2;
+    const bodyGain = ctx.createGain();
+    bodyGain.gain.value = 0;
+    src2.connect(body).connect(bodyGain).connect(sand);
+    src2.start();
+    this.body = body;
+    this.bodyGain = bodyGain;
+
+    const gb = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.4), ctx.sampleRate);
+    const gd = gb.getChannelData(0);
+    for (let i = 0; i < gd.length; i++) gd[i] = Math.random() * 2 - 1;
+    this.grainBuf = gb;
+    this.nextGrainAt = ctx.currentTime + 0.1;
+    this.rate = 0;
+    this.res = 520;
+
+    const grainBus = ctx.createGain();
+    grainBus.gain.value = 0.34;
+    grainBus.connect(sand);
+    this.grainBus = grainBus;
 
     this.nextChordAt = ctx.currentTime + 1.5;
     this.nextNoteAt = ctx.currentTime + 7;
@@ -164,6 +202,16 @@ export class Ambience {
       this.nextChordAt += CYCLE;
     }
 
+    if (this.rate > 0.03 && !this.frozenSand) {
+      const per = Math.min(34, 7 + this.rate * 16);
+      while (this.nextGrainAt < t + 0.3) {
+        this.grain(Math.max(t, this.nextGrainAt));
+        this.nextGrainAt += (1 / per) * (0.6 + Math.random() * 0.8);
+      }
+    } else {
+      this.nextGrainAt = t + 0.1;
+    }
+
     if (t + 0.4 >= this.nextNoteAt) {
       if (this.melodyGain > 0.01) this.note(this.nextNoteAt);
       const density = 0.35 + this.fill * 0.5;
@@ -180,9 +228,49 @@ export class Ambience {
     this.bell(ROOT * ratio, 4.5 + Math.random() * 2.5, vol, when - this.ctx.currentTime, true);
   }
 
+  resonance() {
+    return 480 * Math.pow(5.2, Math.min(1, this.fill));
+  }
+
+  landing(cold) {
+    if (!this.ready || !this.on) return;
+    this.grain(this.ctx.currentTime + 0.01, cold ? 0.55 : 1.15, true);
+  }
+
+  grain(when, boost = 1, solid = false) {
+    const ctx = this.ctx;
+    const src = ctx.createBufferSource();
+    src.buffer = this.grainBuf;
+    src.playbackRate.value = 0.7 + Math.random() * 0.8;
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.frequency.value = this.res * (solid ? 0.4 + Math.random() * 0.45 : 0.55 + Math.random() * 1.1);
+    f.Q.value = solid ? 2.5 + Math.random() * 3 : 4 + Math.random() * 6;
+    const env = ctx.createGain();
+    const dur = (solid ? 0.05 : 0.028) + Math.random() * 0.05;
+    env.gain.setValueAtTime(0, when);
+    env.gain.linearRampToValueAtTime((0.5 + Math.random() * 0.5) * boost, when + 0.004);
+    env.gain.exponentialRampToValueAtTime(0.0005, when + dur);
+    let tail = env;
+    if (ctx.createStereoPanner) {
+      const p = ctx.createStereoPanner();
+      p.pan.value = (Math.random() - 0.5) * 1.1;
+      env.connect(p);
+      tail = p;
+    }
+    tail.connect(this.grainBus);
+    src.connect(f).connect(env);
+    src.start(when, Math.random() * 0.3, dur + 0.02);
+    src.stop(when + dur + 0.05);
+  }
+
   setFill(f) {
     this.fill = f;
     if (!this.ready) return;
+    this.res = this.resonance();
+    this.glide(this.bp.frequency, this.res, 4);
+    this.glide(this.body.frequency, 150 + f * 260, 4);
+    this.glide(this.bodyGain.gain, (1 - f * 0.55) * 0.09 * Math.min(1, this.rate * 2 + 0.25), 2);
     const body = Math.min(1, 0.35 + f * 0.85);
     this.pedal.forEach((v) => this.glide(v.gain.gain, v.level * body, 3));
     const steps = [0, 0.18, 0.5];
@@ -212,7 +300,8 @@ export class Ambience {
       this.glide(v.osc.detune, dir * spread * (1 + i * 0.1), tau);
     });
     this.glide(this.air.frequency, cold ? 420 : stone ? 1300 : 2200, cold ? 1 : 7);
-    this.glide(this.bp.frequency, cold ? 420 : 2100, 1);
+    this.glide(this.bp.frequency, cold ? this.res * 0.45 : this.res, 1.5);
+    this.glide(this.grainBus.gain, cold ? 0.5 : 0.34, 1.5);
 
     clearTimeout(this._melTimer);
     if (cold) {
@@ -242,7 +331,10 @@ export class Ambience {
 
   pour(rate) {
     if (!this.ready) return;
-    this.glide(this.hiss.gain, Math.min(0.34, rate * 0.26), 0.4);
+    this.rate = rate;
+    this.glide(this.hiss.gain, Math.min(0.3, 0.035 + rate * 0.16), 0.5);
+    this.glide(this.bodyGain.gain, (1 - this.fill * 0.55) * 0.09 * Math.min(1, rate * 2 + 0.25), 1);
+    this.glide(this.music.gain, rate > 2.2 ? 0.55 : 1, 0.9);
   }
 
   bell(freq, dur = 3.2, vol = 0.1, when = 0, soft = false) {
@@ -294,6 +386,9 @@ export class Ambience {
     [...this.pedal, ...this.upper].forEach((v) => this.glide(v.osc.detune, 0, 0.8));
     this.glide(this.air.frequency, 3400, 1.5);
     this.glide(this.hiss.gain, 0, 1.2);
+    this.glide(this.bodyGain.gain, 0, 1.2);
+    this.glide(this.music.gain, 1, 1);
+    this.rate = 0;
     this.applyChord(0, ctx.currentTime + 0.1);
 
     const third = ctx.createOscillator();
