@@ -17,13 +17,11 @@
 <div class="beam" aria-hidden="true"></div>
 
 <header class="topbar">
-  <div class="brand">
-    <span class="mark"></span>
-    <span class="txt">Слои&nbsp;внимания</span>
-  </div>
+  <div class="brand"><span class="mark"></span><span class="txt">Слои&nbsp;внимания</span></div>
   <nav class="nav">
     <button data-go="intro" class="lnk">Экспликация</button>
     <button data-go="stage" class="lnk">Сеанс</button>
+    <button data-go="room" class="lnk">Зал</button>
     <button data-go="archive" class="lnk">Архив</button>
     <button id="sound" class="lnk sound" aria-pressed="false"><span class="eq"><i></i><i></i><i></i></span><span class="txt">Звук</span></button>
   </nav>
@@ -33,7 +31,7 @@
   <section class="view view--intro" id="view-intro">
     <div class="intro-grid">
       <div class="intro-left">
-        <p class="overline">Перформанс · 2026 · одиночный посетитель</p>
+        <p class="overline">Перформанс · 2026 · зритель как прибор</p>
         <h1>Слои<br>внимания</h1>
         <p class="latin">Layers of Attention</p>
         <dl class="tombstone">
@@ -47,27 +45,78 @@
         <div class="statement">
           <p><em>Внимание нельзя увидеть. Но у него остаётся осадок.</em></p>
           <p>Пока вы удерживаете эту страницу в фокусе, колба наполняется песком — медленно, слой за слоем. Стоит уйти в другую вкладку, окно или приложение, поток меняет состав: откладывается холодная прослойка разрыва. Она растёт ровно столько, сколько вас нет.</p>
-          <p>Вернувшись, вы не получаете внимание обратно целиком. Первые минуты нового слоя мутные — это остаточное внимание, след недоведённой задачи. В породе он виден как дымка над каждым разрывом.</p>
+          <p>Вернувшись, вы скажете, где были. Если внутри круга, который вы сами очертили перед началом, — порода будет каменной, рабочей. Если вне — синей. Прибор здесь вы: показания даёт человек, а не слежка.</p>
           <p>Когда колба заполнена, стекло исчезает, искажение формы снимается и время становится линейным. У вас на руках керн — срез сеанса, который читается так же, как геолог читает породу, а климатолог — ледниковый щит.</p>
         </div>
 
         <ul class="legend">
           <li><span class="sw sw--focus"></span><b>Тёплый слой</b><i>непрерывный фокус</i></li>
+          <li><span class="sw sw--stone"></span><b>Каменный слой</b><i>переход внутри круга разрешённого</i></li>
           <li><span class="sw sw--drift"></span><b>Холодный слой</b><i>разрыв: вкладка, окно, уведомление</i></li>
           <li><span class="sw sw--haze"></span><b>Дымка</b><i>остаточное внимание после возвращения</i></li>
         </ul>
 
-        <p class="fineprint">Метод: высота слоя пропорциональна его длительности; индекс дробления вычисляется как 1&nbsp;−&nbsp;Σ(fᵢ/F)², где fᵢ — длительности непрерывных эпизодов фокуса. В исследованиях экранного внимания средняя длина непрерывного эпизода измеряется десятками секунд. Ни один байт не покидает ваш браузер.</p>
+        <div class="method">
+          <p class="overline">Метод</p>
+          <ol class="refs">
+            <li><b>Обет.</b> Перед сеансом вы называете задачу и очерчиваете круг. Формула «если… — то…» повышает шанс довести начатое <i>(Gollwitzer, 1999)</i>, а добровольное ограничение работает лучше навязанного <i>(Ariely &amp; Wertenbroch, 2002)</i>.</li>
+            <li><b>Дымка.</b> После переключения часть внимания остаётся на прошлом <i>(Leroy, 2009)</i>; даже уместный переход стоит времени <i>(Monsell, 2003)</i>. Поэтому первые минуты нового слоя мутные, а каменный переход мутит их вдвое слабее.</li>
+            <li><b>Рекорд.</b> Пунктир в колбе — ваш длиннейший непрерывный слой. Усилие растёт у самой цели <i>(Hull, 1932; Kivetz et al., 2006)</i>.</li>
+            <li><b>Разрыв не приговор.</b> Слой после разрыва — не провал, а точка нового отсчёта <i>(Dai, Milkman &amp; Riis, 2014)</i>.</li>
+            <li><b>Зал.</b> Присутствие других меняет исполнение <i>(Triplett, 1898; Zajonc, 1965)</i>. Рейтинга здесь нет намеренно: публичное сравнение подтягивает отстающих и расслабляет опережающих <i>(Schultz et al., 2007)</i>.</li>
+          </ol>
+          <p class="fineprint">Индекс дробления = 1 − Σ(fᵢ/F)², где fᵢ — длительности непрерывных рабочих отрезков. В исследованиях экранного внимания средняя длина непрерывного эпизода измеряется десятками секунд <i>(Mark, 2023)</i>. Ни один байт не уходит с вашей машины, пока вы сами не войдёте в зал.</p>
+        </div>
 
         <div class="starter">
+          <button class="cta" id="to-ritual"><span>Принести обет</span><em></em></button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="view view--ritual" id="view-ritual">
+    <div class="ritual">
+      <p class="overline">Зал 1 · обет</p>
+      <h2 class="ritual-h">Перед тем<br>как начать</h2>
+
+      <div class="vow">
+        <label class="field">
+          <span class="lbl">Над чем работаете</span>
+          <input id="task" maxlength="70" placeholder="глава 2 · разбор данных · эскизы" autocomplete="off">
+        </label>
+
+        <div class="field">
+          <span class="lbl">Круг разрешённого <i>— сюда можно уходить без разрыва</i></span>
+          <div class="chips" id="circle"></div>
+          <div class="chip-add">
+            <input id="chip-new" maxlength="24" placeholder="добавить: Figma, словарь, бумага" autocomplete="off">
+            <button class="ghost" id="chip-go">+</button>
+          </div>
+        </div>
+
+        <p class="oath" id="oath"></p>
+
+        <div class="field">
+          <span class="lbl">Колба</span>
           <div class="picks" role="radiogroup" aria-label="Длительность сеанса">
             <button class="pick" data-min="2">2</button>
             <button class="pick" data-min="15">15</button>
             <button class="pick is-on" data-min="25">25</button>
             <button class="pick" data-min="50">50</button>
-            <span class="picks-unit">минут · 2 для пробы</span>
+            <span class="picks-unit">минут</span>
           </div>
+        </div>
+
+        <label class="switch">
+          <input type="checkbox" id="witness">
+          <span class="sw-box"></span>
+          <span class="sw-txt">Войти в зал присутствия<i id="witness-note">передаются только имя, доля заполнения и состояние</i></span>
+        </label>
+
+        <div class="ritual-go">
           <button class="cta" id="begin"><span>Начать сеанс</span><em></em></button>
+          <button class="lnk" data-go="intro">назад</button>
         </div>
       </div>
     </div>
@@ -75,24 +124,22 @@
 
   <section class="view view--stage" id="view-stage">
     <aside class="rail rail--left">
-      <div class="state" id="state">
-        <span class="dot"></span>
-        <span class="state-name">Фокус</span>
-      </div>
+      <div class="state" id="state"><span class="dot"></span><span class="state-name">Фокус</span></div>
+      <p class="task-line" id="task-line"></p>
       <div class="readouts">
+        <div class="ro ro--big"><dt>Слой сейчас</dt><dd id="ro-run">00:00</dd></div>
         <div class="ro"><dt>Прошло</dt><dd id="ro-time">00:00</dd></div>
         <div class="ro"><dt>Глубина фокуса</dt><dd id="ro-depth">100%</dd></div>
         <div class="ro"><dt>Разрывов</dt><dd id="ro-breaks">0</dd></div>
-        <div class="ro"><dt>Слоёв</dt><dd id="ro-strata">1</dd></div>
-        <div class="ro"><dt>Длиннейший слой</dt><dd id="ro-longest">00:00</dd></div>
         <div class="ro"><dt>Индекс дробления</dt><dd id="ro-frag">0.00</dd></div>
       </div>
-      <p class="rail-note">Не переключайтесь. Наблюдайте, как оседает время.</p>
+      <p class="rail-note" id="rail-note">Не переключайтесь. Наблюдайте, как оседает время.</p>
     </aside>
 
     <div class="vessel-wrap">
       <canvas id="vessel"></canvas>
       <div class="tip" id="tip"></div>
+      <div class="witness-badge" id="witness-badge"></div>
     </div>
 
     <aside class="rail rail--right">
@@ -114,16 +161,54 @@
         <div class="lab-actions">
           <button class="ghost" id="to-archive">В архив</button>
           <button class="ghost" id="again">Ещё сеанс</button>
+          <button class="ghost" id="share">Ссылка</button>
           <button class="ghost" id="png">PNG</button>
         </div>
       </div>
     </aside>
   </section>
 
+  <section class="view view--room" id="view-room">
+    <div class="arc-head">
+      <div>
+        <p class="overline">Зал 2 · присутствие</p>
+        <h2>Зал</h2>
+      </div>
+      <div class="arc-tools">
+        <span class="net-state" id="net-state">проверяю связь…</span>
+        <button class="ghost" id="join">Войти</button>
+      </div>
+    </div>
+    <div class="room-body">
+      <div class="room-main">
+        <p class="room-note">Здесь нет рейтинга — только присутствие. Гипотеза перформанса: при свидетелях доля фокуса выше. Ваш собственный архив её и проверяет: каждый керн помечен, был ли он одиноким.</p>
+        <div class="wall" id="wall"></div>
+      </div>
+      <aside class="room-side">
+        <div class="side-block">
+          <p class="overline">Обмен образцами</p>
+          <p class="side-note">Керн умещается в строку. Отдайте её — и ваш срез встанет в чужое собрание рядом с их собственным.</p>
+          <div class="ex-row">
+            <input id="ex-in" placeholder="вставьте ссылку или код" autocomplete="off">
+            <button class="ghost" id="ex-add">Принять</button>
+          </div>
+          <button class="ghost wide" id="ex-copy">Скопировать ссылку на последний керн</button>
+          <div class="guests" id="guests"></div>
+        </div>
+        <div class="side-block">
+          <p class="overline">Коллективный керн</p>
+          <p class="side-note" id="coll-note"></p>
+          <div class="coll-wrap"><canvas id="coll"></canvas></div>
+          <dl class="lab-metrics" id="coll-stats"></dl>
+        </div>
+      </aside>
+    </div>
+  </section>
+
   <section class="view view--archive" id="view-archive">
     <div class="arc-head">
       <div>
-        <p class="overline">Зал 2 · собрание кернов</p>
+        <p class="overline">Зал 3 · собрание кернов</p>
         <h2>Архив</h2>
       </div>
       <div class="arc-tools">
@@ -134,9 +219,23 @@
         <button class="ghost" id="wipe">Очистить</button>
       </div>
     </div>
+    <p class="experiment" id="experiment"></p>
     <div id="arc-body" class="arc-body"></div>
   </section>
 </main>
+
+<div class="ask" id="ask">
+  <div class="ask-box">
+    <p class="overline">Разрыв <span id="ask-dur"></span></p>
+    <h3>Где вы были?</h3>
+    <p class="ask-sub">Слой уже отложен — ответ меняет его породу, но не длину. Прибор здесь вы.</p>
+    <div class="ask-chips" id="ask-chips"></div>
+    <div class="ask-actions">
+      <button class="ghost" id="ask-out">Вне круга</button>
+      <button class="ghost" id="ask-skip">Не отвечать</button>
+    </div>
+  </div>
+</div>
 
 <div class="toast" id="toast"></div>
 <script type="module" src="js/app.js"></script>

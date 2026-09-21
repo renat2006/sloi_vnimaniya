@@ -1,5 +1,5 @@
-import { buildGeom } from './geom.js';
-import { drawStack, PAL, rgba } from './paint.js';
+import { buildGeom, vesselPath, tAtVol, yAt } from './geom.js';
+import { drawStack, PAL, rgba, mix } from './paint.js';
 import { metricsOf, fmtShort, fmt } from './session.js';
 import * as store from './store.js';
 
@@ -28,6 +28,47 @@ export function paintCore(canvas, core, w, h, opts = {}) {
   return ctx;
 }
 
+export function paintPeer(canvas, fill, mode, w = 54, h = 112) {
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  canvas.width = Math.round(w * dpr);
+  canvas.height = Math.round(h * dpr);
+  canvas.style.width = w + 'px';
+  canvas.style.height = h + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  const g = buildGeom({ cx: w / 2, top: 4, bottom: h - 4, R: w / 2 - 4, morph: 0 });
+  const cold = mode === 'drift';
+  const t = tAtVol(g, fill);
+  const y = yAt(g, t);
+
+  ctx.save();
+  vesselPath(ctx, g, 1);
+  ctx.clip();
+  if (fill > 0.004) {
+    const grd = ctx.createLinearGradient(0, g.bottom, 0, y);
+    grd.addColorStop(0, cold ? PAL.driftDeep : PAL.focusDeep);
+    grd.addColorStop(0.7, cold ? PAL.drift : mix(PAL.focusDeep, PAL.focus, 0.7));
+    grd.addColorStop(1, cold ? PAL.driftLite : PAL.focus);
+    ctx.fillStyle = grd;
+    ctx.fillRect(0, y, w, g.bottom - y + 4);
+    ctx.fillStyle = rgba(cold ? PAL.driftEdge : PAL.focusLite, 0.5);
+    ctx.fillRect(0, y - 0.5, w, 1);
+  }
+  const side = ctx.createLinearGradient(g.cx - g.R, 0, g.cx + g.R, 0);
+  side.addColorStop(0, 'rgba(0,0,0,0.55)');
+  side.addColorStop(0.45, 'rgba(255,255,255,0.05)');
+  side.addColorStop(1, 'rgba(0,0,0,0.55)');
+  ctx.fillStyle = side;
+  ctx.fillRect(g.cx - g.R, g.top, g.R * 2, g.h);
+  ctx.restore();
+
+  vesselPath(ctx, g, 0);
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = rgba(cold ? PAL.driftEdge : PAL.bone, mode === 'done' ? 0.18 : 0.3);
+  ctx.stroke();
+}
+
 const dt = (ms) => new Date(ms);
 const dateLine = (ms) =>
   dt(ms).toLocaleDateString('ru-RU', { day: '2-digit', month: 'long' }) +
@@ -35,14 +76,46 @@ const dateLine = (ms) =>
   dt(ms).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 
 export function readingOf(m) {
-  if (m.breaks === 0) return 'Монолит. Ни одной границы — порода, которую почти не встретить.';
+  if (m.breaks === 0 && m.transitions === 0) return 'Монолит. Ни одной границы — порода, которую почти не встретить.';
+  if (m.breaks === 0) return 'Монолит с прожилками: переходы были, но все внутри круга.';
   if (m.fragmentation < 0.25) return 'Плотная порода: крупные слои, границы читаются по одной.';
   if (m.fragmentation < 0.55) return 'Слоистая порода: внимание держалось эпизодами.';
   return 'Дроблёная порода: слои тоньше, чем время, нужное на возвращение.';
 }
 
+export function collective(cores) {
+  const layers = [];
+  let cursor = 0;
+  [...cores]
+    .sort((a, b) => a.startedAt - b.startedAt)
+    .forEach((c) => {
+      c.layers.forEach((l) => {
+        const d = l.end - l.start;
+        if (d <= 0) return;
+        layers.push({ type: l.type, start: cursor, end: cursor + d });
+        cursor += d;
+      });
+    });
+  return { layers, capacityMs: cursor || 1, durationMs: cursor };
+}
+
+export function experimentLine(cores) {
+  const real = cores.filter((c) => c.metrics && c.durationMs > 20000);
+  const alone = real.filter((c) => !c.witnessed);
+  const seen = real.filter((c) => c.witnessed);
+  const avg = (arr) => (arr.length ? arr.reduce((a, c) => a + c.metrics.depth, 0) / arr.length : 0);
+  if (!seen.length || !alone.length) {
+    return `<b>Эксперимент.</b> Сеансов наедине — ${alone.length}, при свидетелях — ${seen.length}. Для сравнения нужен хотя бы один с каждой стороны.`;
+  }
+  const a = avg(alone);
+  const s = avg(seen);
+  const delta = Math.round((s - a) * 100);
+  const sign = delta > 0 ? 'выше' : delta < 0 ? 'ниже' : 'та же';
+  return `<b>Эксперимент.</b> Наедине ${alone.length} сеанс(ов), глубина ${Math.round(a * 100)}% · при свидетелях ${seen.length}, глубина ${Math.round(s * 100)}%. Разница ${Math.abs(delta)} п.п. — при свидетелях ${sign}. Выборка мала, и вы сами выбирали, когда входить в зал: это наблюдение, а не доказательство.`;
+}
+
 export function mount(root, mode) {
-  const all = store.list().slice().sort((a, b) => b.startedAt - a.startedAt);
+  const all = [...store.list(), ...store.guests()].sort((a, b) => b.startedAt - a.startedAt);
   root.innerHTML = '';
   if (!all.length) {
     root.innerHTML =
@@ -58,31 +131,38 @@ function mountCores(root, all) {
   grid.className = 'arc-grid';
   const total = all.length;
   all.forEach((c, i) => {
-    const m = metricsOf(c.layers, c.durationMs);
+    const m = c.metrics || metricsOf(c.layers, c.durationMs);
     const el = document.createElement('article');
     el.className = 'card';
+    const tag = c.guest ? `гость · ${c.author}` : `Керн № ${String(total - i).padStart(3, '0')}`;
     el.innerHTML = `
       <canvas></canvas>
       <div class="card-info">
-        <p class="card-idx">Керн № ${String(total - i).padStart(3, '0')}</p>
+        <p class="card-idx">${tag}${c.witnessed ? ' · при свидетелях' : ''}</p>
         <p class="card-title">${fmtShort(c.durationMs)}</p>
         <p class="card-date">${dateLine(c.startedAt)}</p>
+        ${c.task ? `<p class="card-task">${escape(c.task)}</p>` : ''}
         <div class="card-rows">
           <span>Глубина фокуса <b>${Math.round(m.depth * 100)}%</b></span>
           <span>Разрывов <b>${m.breaks}</b></span>
-          <span>Слоёв <b>${m.strata}</b></span>
+          <span>Переходов <b>${m.transitions || 0}</b></span>
           <span>Дробление <b>${m.fragmentation.toFixed(2)}</b></span>
         </div>
-        <button class="card-kill">Удалить</button>
+        <button class="card-kill">${c.guest ? 'Вернуть' : 'Удалить'}</button>
       </div>`;
     grid.appendChild(el);
     paintCore(el.querySelector('canvas'), c, 92, 210);
     el.querySelector('.card-kill').addEventListener('click', () => {
-      store.remove(c.id);
+      if (c.guest) store.dropGuest(c.id);
+      else store.remove(c.id);
       mount(root, 'cores');
     });
   });
   root.appendChild(grid);
+}
+
+function escape(s) {
+  return String(s).replace(/[<>&]/g, (ch) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' })[ch]);
 }
 
 function mountWeek(root, all) {
@@ -139,13 +219,19 @@ export function exportPNG(core, index) {
   ctx.lineWidth = 1;
   ctx.strokeRect(89.5, 173.5, 163, 813);
 
-  const m = metricsOf(core.layers, core.durationMs);
+  const m = core.metrics || metricsOf(core.layers, core.durationMs);
   const mono = (s, size, a, x, y, ls = 0) => {
     ctx.font = `400 ${size}px "IBM Plex Mono", monospace`;
     ctx.fillStyle = rgba(PAL.bone, a);
-    if (!ls) { ctx.fillText(s, x, y); return; }
+    if (!ls) {
+      ctx.fillText(s, x, y);
+      return;
+    }
     let cx = x;
-    for (const ch of s) { ctx.fillText(ch, cx, y); cx += ctx.measureText(ch).width + ls; }
+    for (const ch of s) {
+      ctx.fillText(ch, cx, y);
+      cx += ctx.measureText(ch).width + ls;
+    }
   };
   mono('СЛОИ ВНИМАНИЯ', 11, 0.5, 96, 92, 3.4);
   ctx.font = '300 54px "Cormorant Garamond", Georgia, serif';
@@ -154,10 +240,11 @@ export function exportPNG(core, index) {
   mono(dateLine(core.startedAt).toUpperCase(), 11, 0.42, 302, 268, 1.6);
 
   const rows = [
+    ['ЗАДАЧА', (core.task || '—').slice(0, 26)],
     ['ДЛИТЕЛЬНОСТЬ', fmt(core.durationMs)],
     ['ГЛУБИНА ФОКУСА', Math.round(m.depth * 100) + '%'],
     ['РАЗРЫВОВ', String(m.breaks)],
-    ['СЛОЁВ', String(m.strata)],
+    ['ПЕРЕХОДОВ В КРУГЕ', String(m.transitions || 0)],
     ['ДЛИННЕЙШИЙ СЛОЙ', fmt(m.longest)],
     ['ИНДЕКС ДРОБЛЕНИЯ', m.fragmentation.toFixed(2)],
     ['ДЫМКА ВОЗВРАЩЕНИЯ', fmt(m.residueMs)]
@@ -175,12 +262,12 @@ export function exportPNG(core, index) {
     ctx.textAlign = 'right';
     ctx.fillText(v, W - 96, y + 1);
     ctx.textAlign = 'left';
-    y += 44;
+    y += 42;
   });
 
   ctx.font = 'italic 300 19px "Cormorant Garamond", Georgia, serif';
   ctx.fillStyle = rgba(PAL.bone, 0.7);
-  wrapText(ctx, readingOf(m), 302, y + 34, W - 398, 26);
+  wrapText(ctx, readingOf(m), 302, y + 30, W - 398, 26);
   mono('ЛОКАЛЬНАЯ ЗАПИСЬ · ДАННЫЕ НЕ ПОКИДАЛИ БРАУЗЕР', 9, 0.3, 96, H - 64, 2);
 
   const a = document.createElement('a');

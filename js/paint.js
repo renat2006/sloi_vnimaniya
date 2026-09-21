@@ -4,6 +4,8 @@ export const PAL = {
   focusLite: '#F6EACB',
   focus: '#E3D2A6',
   focusDeep: '#9C8047',
+  stone: '#A9A88A',
+  stoneDeep: '#5E5C46',
   drift: '#3A4552',
   driftLite: '#55677A',
   driftDeep: '#171C23',
@@ -107,6 +109,13 @@ function trace(ctx, fy, x0, x1, move) {
 
 function tintOf(type, seed) {
   const k = seedOf(seed + 3);
+  if (type === 'permitted') {
+    return {
+      deep: mix('#3F3E2C', PAL.stoneDeep, 0.25 + k * 0.5),
+      mid: mix(PAL.stoneDeep, PAL.stone, 0.55 + k * 0.3),
+      lite: mix(PAL.stone, '#D6D4BA', 0.14 + k * 0.3)
+    };
+  }
   if (type === 'drift') {
     return {
       deep: mix(PAL.driftDeep, PAL.drift, k * 0.22),
@@ -193,14 +202,16 @@ export function drawStack(ctx, g, layers, opts = {}) {
     ctx.fillStyle = grad;
     ctx.fill();
 
-    if (b.type === 'focus' && k > 0) {
+    const prev = k > 0 ? bands[k - 1].type : null;
+    const weight = prev === 'drift' ? 1 : prev === 'permitted' ? 0.45 : 0;
+    if (b.type !== 'drift' && weight > 0) {
       const span = Math.max(1, b.e - b.s);
-      const hz = Math.min(1, hazeMs / span);
+      const hz = Math.min(1, (hazeMs * weight) / span);
       const yh = y0 + (y1 - y0) * hz;
       const haze = mix(PAL.drift, PAL.ink, 0.28);
       const hg = ctx.createLinearGradient(0, y0, 0, yh);
-      hg.addColorStop(0, rgba(haze, 0.72));
-      hg.addColorStop(0.32, rgba(haze, 0.34));
+      hg.addColorStop(0, rgba(haze, 0.72 * weight));
+      hg.addColorStop(0.32, rgba(haze, 0.34 * weight));
       hg.addColorStop(1, rgba(haze, 0));
       ctx.fillStyle = hg;
       ctx.fill();
@@ -218,7 +229,11 @@ export function drawStack(ctx, g, layers, opts = {}) {
       trace(ctx, low, xL, xR, true);
       ctx.lineWidth = 1;
       ctx.strokeStyle =
-        b.type === 'drift' ? rgba(PAL.driftEdge, 0.3) : rgba(PAL.focusLite, 0.26);
+        b.type === 'drift'
+          ? rgba(PAL.driftEdge, 0.3)
+          : b.type === 'permitted'
+            ? rgba('#D6D4BA', 0.24)
+            : rgba(PAL.focusLite, 0.26);
       ctx.stroke();
       ctx.restore();
     }
@@ -256,7 +271,9 @@ export function drawStack(ctx, g, layers, opts = {}) {
 
   const activeType = bands.length ? bands[bands.length - 1].type : 'focus';
   const sun = ctx.createLinearGradient(0, surfY - 2, 0, surfY + Math.min(46, g.h * 0.09));
-  sun.addColorStop(0, rgba(activeType === 'drift' ? PAL.driftEdge : PAL.focusLite, 0.17));
+  const sunC =
+    activeType === 'drift' ? PAL.driftEdge : activeType === 'permitted' ? PAL.stone : PAL.focusLite;
+  sun.addColorStop(0, rgba(sunC, 0.17));
   sun.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = sun;
   ctx.fillRect(xL, surfY - 2, xR - xL, Math.min(48, g.h * 0.09));
@@ -270,10 +287,7 @@ export function drawStack(ctx, g, layers, opts = {}) {
   ctx.beginPath();
   trace(ctx, surf, g.cx - edgeW, g.cx + edgeW, true);
   ctx.lineWidth = 1.2;
-  ctx.strokeStyle =
-    activeType === 'drift'
-      ? rgba(PAL.driftEdge, live ? 0.8 : 0.45)
-      : rgba(PAL.focusLite, live ? 0.72 : 0.4);
+  ctx.strokeStyle = rgba(sunC, live ? 0.75 : 0.42);
   ctx.stroke();
   ctx.restore();
 }

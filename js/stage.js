@@ -16,9 +16,14 @@ export class Stage {
     this.morphStart = 0;
     this.drift = false;
     this.driftGlow = 0;
+    this.targetMs = null;
+    this.targetHit = 0;
     this.parts = [];
     this.motes = [];
+    this.flashes = [];
+    this.airs = [];
     this.hoverY = null;
+    this.hoverX = null;
     this.hovered = null;
     this.rate = 0;
     this.W = 0;
@@ -27,8 +32,7 @@ export class Stage {
     this.reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
     this.last = performance.now();
     this.raf = null;
-    this.onResize = this.resize.bind(this);
-    new ResizeObserver(this.onResize).observe(canvas.parentElement);
+    new ResizeObserver(() => this.resize()).observe(canvas.parentElement);
     this.resize();
     canvas.addEventListener('pointermove', (e) => {
       const r = canvas.getBoundingClientRect();
@@ -51,6 +55,7 @@ export class Stage {
     this.cv.height = Math.round(this.H * this.dpr);
     this.cv.style.width = this.W + 'px';
     this.cv.style.height = this.H + 'px';
+    this.airs.length = 0;
   }
 
   attach(session) {
@@ -59,8 +64,10 @@ export class Stage {
     this.morph = 0;
     this.morphTarget = 0;
     this.morphStart = 0;
+    this.targetHit = 0;
     this.parts.length = 0;
     this.motes.length = 0;
+    this.flashes.length = 0;
     this.drift = false;
     this.run();
   }
@@ -90,12 +97,12 @@ export class Stage {
 
   geom() {
     const m = this.morph;
-    const flaskR = Math.min(this.W * 0.3, this.H * 0.19);
-    const coreR = Math.min(this.W * 0.42, 190);
+    const flaskR = Math.min(this.W * 0.33, this.H * 0.168);
+    const coreR = Math.min(this.W * 0.44, 190);
     return buildGeom({
       cx: this.W / 2,
-      top: this.H * (0.085 + 0.015 * m),
-      bottom: this.H * (0.935 - 0.01 * m),
+      top: this.H * (0.05 + 0.025 * m),
+      bottom: this.H * (0.815 + 0.04 * m),
       R: flaskR + (coreR - flaskR) * m,
       morph: m
     });
@@ -118,6 +125,7 @@ export class Stage {
       this.morph = easeInOut(clamp((performance.now() - this.morphStart) / 2400, 0, 1));
     }
     this.driftGlow += ((this.drift ? 1 : 0) - this.driftGlow) * (1 - Math.exp(-dt / 300));
+    if (this.targetHit > 0) this.targetHit = Math.max(0, this.targetHit - dt / 2600);
 
     const g = this.geom();
     const ctx = this.ctx;
@@ -127,10 +135,15 @@ export class Stage {
     const layers = s.layers;
     const topT = tAtVol(g, this.shown / cap);
     const surfY = yAt(g, topT);
-
     const fill = clamp(this.shown / cap, 0, 1);
-    this.shadow(ctx, g, fill);
-    if (this.morph < 0.98) this.aura(ctx, g, fill, surfY);
+    const floor = g.bottom + Math.max(6, g.R * 0.05);
+
+    this.room(ctx, g, floor, fill);
+    this.air(ctx, dt, g, floor);
+    if (this.morph < 0.6) this.reflect(ctx, g, layers, cap, floor, surfY, fill);
+
+    this.shadow(ctx, g, floor, fill);
+    this.aura(ctx, g, fill, surfY);
 
     drawStack(ctx, g, layers, {
       capacityMs: cap,
@@ -148,29 +161,131 @@ export class Stage {
     }
     this.particles(ctx, dt, g, surfY);
     this.scale(ctx, g, cap);
-    this.marker(ctx, g, topT, cap);
+    this.mark(ctx, g, cap);
+    this.marker(ctx, g, topT);
     this.hover(ctx, g, layers, cap);
 
     this.hooks.onTick && this.hooks.onTick(target, this.shown, this.rate);
-    if (!s.ended && target >= cap) {
-      this.hooks.onFull && this.hooks.onFull();
-    }
+    if (!s.ended && target >= cap) this.hooks.onFull && this.hooks.onFull();
   }
 
-  shadow(ctx, g, fill) {
-    const y = g.bottom + 14;
-    const r = g.R * 1.15;
-    const grd = ctx.createRadialGradient(g.cx, y, 0, g.cx, y, r);
-    grd.addColorStop(0, 'rgba(0,0,0,0.6)');
-    grd.addColorStop(0.55, mix(PAL.ink, PAL.focusDeep, 0.18 * fill, 0.34));
+  room(ctx, g, floor, fill) {
+    const cold = this.driftGlow;
+    const tone = mix(PAL.bone, PAL.driftEdge, cold * 0.7, 1);
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const cone = ctx.createLinearGradient(0, 0, 0, floor);
+    cone.addColorStop(0, rgba(tone, 0.07 * (1 - cold * 0.45)));
+    cone.addColorStop(0.55, rgba(tone, 0.026 * (1 - cold * 0.45)));
+    cone.addColorStop(1, rgba(tone, 0));
+    ctx.fillStyle = cone;
+    if (!this.reduced) ctx.filter = 'blur(16px)';
+    ctx.beginPath();
+    ctx.moveTo(g.cx - g.R * 0.42, -30);
+    ctx.lineTo(g.cx + g.R * 0.42, -30);
+    ctx.lineTo(g.cx + g.R * 2.5, floor);
+    ctx.lineTo(g.cx - g.R * 2.5, floor);
+    ctx.closePath();
+    ctx.fill();
+    ctx.filter = 'none';
+
+    const pool = ctx.createRadialGradient(g.cx, floor, 0, g.cx, floor, g.R * 2.4);
+    pool.addColorStop(0, rgba(tone, 0.075 + 0.03 * fill));
+    pool.addColorStop(0.5, rgba(tone, 0.02));
+    pool.addColorStop(1, rgba(tone, 0));
+    ctx.save();
+    ctx.translate(g.cx, floor);
+    ctx.scale(1, 0.2);
+    ctx.translate(-g.cx, -floor);
+    ctx.fillStyle = pool;
+    ctx.beginPath();
+    ctx.arc(g.cx, floor, g.R * 2.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    ctx.restore();
+
+    const edge = ctx.createLinearGradient(g.cx - g.R * 2.6, 0, g.cx + g.R * 2.6, 0);
+    edge.addColorStop(0, rgba(PAL.bone, 0));
+    edge.addColorStop(0.5, rgba(PAL.bone, 0.16));
+    edge.addColorStop(1, rgba(PAL.bone, 0));
+    ctx.fillStyle = edge;
+    ctx.fillRect(g.cx - g.R * 2.6, floor, g.R * 5.2, 1);
+  }
+
+  air(ctx, dt, g, floor) {
+    if (this.reduced) return;
+    const want = 44;
+    while (this.airs.length < want) {
+      this.airs.push({
+        x: g.cx + (Math.random() - 0.5) * g.R * 5,
+        y: Math.random() * floor,
+        vx: (Math.random() - 0.5) * 0.06,
+        vy: -0.02 - Math.random() * 0.05,
+        s: 0.6 + Math.random() * 1.1,
+        ph: Math.random() * 6.28
+      });
+    }
+    const k = dt / 16.6;
+    ctx.save();
+    for (const a of this.airs) {
+      a.x += (a.vx + Math.sin(a.y / 60 + a.ph) * 0.05) * k;
+      a.y += a.vy * k;
+      if (a.y < -10) {
+        a.y = floor + 10;
+        a.x = g.cx + (Math.random() - 0.5) * g.R * 5;
+      }
+      const inCone = 1 - clamp(Math.abs(a.x - g.cx) / (g.R * 2.2), 0, 1);
+      const alpha = 0.06 + inCone * 0.3 * (1 - this.driftGlow * 0.6);
+      ctx.fillStyle = rgba(PAL.bone, alpha);
+      ctx.fillRect(a.x, a.y, a.s, a.s);
+    }
+    ctx.restore();
+  }
+
+  reflect(ctx, g, layers, cap, floor, surfY, fill) {
+    const h = this.H - floor;
+    if (h < 24) return;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, floor + 1, this.W, h);
+    ctx.clip();
+    ctx.translate(0, floor * 2);
+    ctx.scale(1, -1);
+    ctx.globalAlpha = 0.38 * (1 - this.morph);
+    if (!this.reduced) ctx.filter = 'blur(1.8px)';
+    drawStack(ctx, g, layers, {
+      capacityMs: cap,
+      shownMs: this.shown,
+      amp: Math.min(10, g.R * 0.05),
+      grainAlpha: 0.4
+    });
+    this.glass(ctx, g, 0.5, surfY, fill, true);
+    ctx.filter = 'none';
+    ctx.restore();
+
+    const fade = ctx.createLinearGradient(0, floor, 0, floor + h * 0.95);
+    fade.addColorStop(0, 'rgba(8,9,11,0.08)');
+    fade.addColorStop(0.3, 'rgba(8,9,11,0.5)');
+    fade.addColorStop(0.7, 'rgba(8,9,11,0.9)');
+    fade.addColorStop(1, 'rgba(8,9,11,1)');
+    ctx.fillStyle = fade;
+    ctx.fillRect(0, floor, this.W, h);
+  }
+
+  shadow(ctx, g, floor, fill) {
+    const r = g.R * 1.2;
+    const grd = ctx.createRadialGradient(g.cx, floor, 0, g.cx, floor, r);
+    grd.addColorStop(0, 'rgba(0,0,0,0.72)');
+    grd.addColorStop(0.5, mix(PAL.ink, PAL.focusDeep, 0.2 * fill, 0.36));
     grd.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.save();
-    ctx.translate(g.cx, y);
-    ctx.scale(1, 0.14);
-    ctx.translate(-g.cx, -y);
+    ctx.translate(g.cx, floor);
+    ctx.scale(1, 0.13);
+    ctx.translate(-g.cx, -floor);
     ctx.fillStyle = grd;
     ctx.beginPath();
-    ctx.arc(g.cx, y, r, 0, Math.PI * 2);
+    ctx.arc(g.cx, floor, r, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }
@@ -179,7 +294,7 @@ export class Stage {
     if (fill > 0.02) {
       const cy = (surfY + g.bottom) / 2;
       const warm = ctx.createRadialGradient(g.cx, cy, g.R * 0.2, g.cx, cy, g.R * 2.7);
-      warm.addColorStop(0, rgba(PAL.focus, 0.1 * fill + 0.02));
+      warm.addColorStop(0, rgba(PAL.focus, 0.1 * fill + 0.02 + this.targetHit * 0.12));
       warm.addColorStop(0.45, rgba(PAL.focusDeep, 0.05 * fill));
       warm.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = warm;
@@ -195,9 +310,9 @@ export class Stage {
     ctx.fillRect(0, 0, this.W, this.H);
   }
 
-  glass(ctx, g, a, surfY, fill) {
+  glass(ctx, g, a, surfY, fill, flat) {
     ctx.save();
-    ctx.globalAlpha = a;
+    ctx.globalAlpha *= a;
 
     ctx.save();
     vesselPath(ctx, g, 1);
@@ -213,15 +328,15 @@ export class Stage {
 
     if (fill > 0.02) {
       const bounce = ctx.createRadialGradient(g.cx, surfY, g.R * 0.05, g.cx, surfY, g.R * 1.05);
-      bounce.addColorStop(0, rgba(this.drift ? PAL.driftEdge : PAL.focusLite, 0.07 * a));
+      bounce.addColorStop(0, rgba(this.drift ? PAL.driftEdge : PAL.focusLite, 0.07));
       bounce.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = bounce;
       ctx.fillRect(g.cx - g.R, surfY - g.R * 1.05, g.R * 2, g.R * 2.1);
     }
 
     const sheen = (xc, halfW, peak) => {
-      const band = (y, h, mul) => {
-        if (h <= 0) return;
+      const band = (y, hh, mul) => {
+        if (hh <= 0) return;
         const hz = ctx.createLinearGradient(xc - halfW, 0, xc + halfW, 0);
         hz.addColorStop(0, rgba(PAL.bone, 0));
         hz.addColorStop(0.42, rgba(PAL.bone, peak * mul * 0.5));
@@ -231,7 +346,7 @@ export class Stage {
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
         ctx.fillStyle = hz;
-        ctx.fillRect(xc - halfW, y, halfW * 2, h);
+        ctx.fillRect(xc - halfW, y, halfW * 2, hh);
         ctx.restore();
       };
       const cut = clamp(surfY, g.top, g.bottom);
@@ -287,6 +402,7 @@ export class Stage {
     line.addColorStop(0.3, mix(PAL.bone, PAL.driftEdge, k, 0.28));
     line.addColorStop(0.85, mix(PAL.bone, PAL.driftEdge, k, 0.34));
     line.addColorStop(1, mix(PAL.bone, PAL.driftEdge, k, 0.2));
+
     vesselPath(ctx, g, -1.4);
     ctx.lineWidth = 3;
     ctx.strokeStyle = rgba(PAL.ink, 0.72);
@@ -302,7 +418,7 @@ export class Stage {
     ctx.strokeStyle = rgba(PAL.bone, 0.07);
     ctx.stroke();
 
-    if (fill > 0.015 && this.morph < 0.4) {
+    if (!flat && fill > 0.015 && this.morph < 0.4) {
       const ew = wAt(g, tAtVol(g, fill)) * g.R;
       ctx.fillStyle = rgba(this.drift ? PAL.driftEdge : PAL.focusLite, 0.5);
       ctx.fillRect(g.cx - ew - 1, surfY - 1, 3, 2);
@@ -354,28 +470,16 @@ export class Stage {
       }
       n -= 1;
     }
-    if (this.motes.length < 26 && Math.random() < 0.05) {
-      this.motes.push({
-        x: g.cx + (Math.random() - 0.5) * g.R * 1.5,
-        y: surfY - Math.random() * (surfY - g.top) * 0.9,
-        vx: (Math.random() - 0.5) * 0.05,
-        vy: -0.02 - Math.random() * 0.04,
-        a: 0,
-        life: 1,
-        s: 0.5 + Math.random()
-      });
-    }
   }
 
   stream(ctx, g, surfY, ts) {
     if (this.reduced) return;
     const sway = Math.sin(ts / 700) * (this.drift ? 3.4 : 1.1);
-    const w = this.drift ? 2.6 : 1.5;
-    const grd = ctx.createLinearGradient(0, g.top - 30, 0, surfY);
     const c = this.drift ? PAL.driftEdge : PAL.focusLite;
+    const grd = ctx.createLinearGradient(0, g.top - 30, 0, surfY);
     grd.addColorStop(0, rgba(c, 0));
-    grd.addColorStop(0.25, rgba(c, this.drift ? 0.34 : 0.22));
-    grd.addColorStop(1, rgba(c, this.drift ? 0.5 : 0.34));
+    grd.addColorStop(0.25, rgba(c, this.drift ? 0.34 : 0.2));
+    grd.addColorStop(1, rgba(c, this.drift ? 0.5 : 0.32));
     ctx.save();
     vesselPath(ctx, g, 1);
     ctx.clip();
@@ -387,9 +491,15 @@ export class Stage {
       g.cx + sway * 0.3, surfY
     );
     ctx.strokeStyle = grd;
-    ctx.lineWidth = w;
+    ctx.lineWidth = this.drift ? 2.6 : 1.5;
     ctx.lineCap = 'round';
     ctx.stroke();
+
+    const hit = ctx.createRadialGradient(g.cx + sway * 0.3, surfY, 0, g.cx + sway * 0.3, surfY, 16);
+    hit.addColorStop(0, rgba(c, 0.26));
+    hit.addColorStop(1, rgba(c, 0));
+    ctx.fillStyle = hit;
+    ctx.fillRect(g.cx - 20, surfY - 16, 40, 32);
     ctx.restore();
   }
 
@@ -406,22 +516,38 @@ export class Stage {
       const land = surfY - 1;
       if (p.y >= land || this.morph > 0) {
         this.parts.splice(i, 1);
-        if (p.y >= land && Math.random() < 0.7) {
-          const dir = Math.sign(p.x - g.cx) || 1;
-          this.motes.push({
-            x: p.x,
-            y: land,
-            vx: dir * (0.25 + Math.random() * 0.5),
-            vy: -0.12 - Math.random() * 0.2,
-            a: 0.8,
-            life: 0.7,
-            s: 0.7
-          });
+        if (p.y >= land) {
+          this.flashes.push({ x: p.x, y: land, life: 1, cold: p.cold });
+          if (Math.random() < 0.7) {
+            const dir = Math.sign(p.x - g.cx) || 1;
+            this.motes.push({
+              x: p.x,
+              y: land,
+              vx: dir * (0.25 + Math.random() * 0.5),
+              vy: -0.12 - Math.random() * 0.2,
+              life: 0.7,
+              s: 0.7
+            });
+          }
         }
         continue;
       }
       ctx.fillStyle = p.cold ? rgba(PAL.driftEdge, 0.66) : rgba(PAL.focusLite, 0.6);
       ctx.fillRect(p.x, p.y, p.s, p.s * 2.8);
+    }
+    for (let i = this.flashes.length - 1; i >= 0; i--) {
+      const f = this.flashes[i];
+      f.life -= 0.055 * k;
+      if (f.life <= 0) {
+        this.flashes.splice(i, 1);
+        continue;
+      }
+      const r = 3 + (1 - f.life) * 9;
+      const gr = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, r);
+      gr.addColorStop(0, rgba(f.cold ? PAL.driftEdge : PAL.focusLite, 0.3 * f.life));
+      gr.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = gr;
+      ctx.fillRect(f.x - r, f.y - r, r * 2, r * 2);
     }
     for (let i = this.motes.length - 1; i >= 0; i--) {
       const m = this.motes[i];
@@ -467,7 +593,30 @@ export class Stage {
     ctx.restore();
   }
 
-  marker(ctx, g, topT, cap) {
+  mark(ctx, g, cap) {
+    if (this.targetMs == null || this.morph > 0.2) return;
+    const v = this.targetMs / cap;
+    if (v <= 0 || v > 1) return;
+    const y = yAt(g, tAtVol(g, v));
+    const w = g.R * 1.02;
+    ctx.save();
+    ctx.setLineDash([3, 5]);
+    ctx.beginPath();
+    ctx.moveTo(g.cx - w, y);
+    ctx.lineTo(g.cx + w, y);
+    ctx.strokeStyle = rgba(PAL.focusLite, 0.3 + this.targetHit * 0.5);
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.font = '500 8px "IBM Plex Mono", ui-monospace, monospace';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'bottom';
+    ctx.fillStyle = rgba(PAL.focusLite, 0.45);
+    ctx.fillText('РЕКОРД', g.cx - w, y - 4);
+    ctx.restore();
+  }
+
+  marker(ctx, g, topT) {
     if (this.morph > 0.5) return;
     const y = yAt(g, topT);
     const x = g.cx - wAt(g, topT) * g.R;
