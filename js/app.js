@@ -135,7 +135,7 @@ function finish(auto) {
   session.endMs = e;
   const layers = sealed(session);
   const m = metricsOf(layers, e);
-  lastIndex = store.list().filter((c) => !c.demo).length + 1;
+  lastIndex = store.list().length + 1;
   lastCore = store.save({
     id: 'c' + Date.now().toString(36),
     startedAt: session.startedAt,
@@ -215,11 +215,6 @@ document.querySelectorAll('.tab').forEach((t) =>
     archive.mount($('#arc-body'), arcMode);
   })
 );
-$('#demo').addEventListener('click', () => {
-  store.seedDemo();
-  archive.mount($('#arc-body'), arcMode);
-  toast('учебные образцы заложены');
-});
 $('#wipe').addEventListener('click', () => {
   store.clearAll();
   archive.mount($('#arc-body'), arcMode);

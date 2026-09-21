@@ -1,66 +1,102 @@
 import { clamp, wAt, yAt, tAtVol, vesselPath } from './geom.js';
 
 export const PAL = {
-  focus: '#E9DFC7',
-  focusDeep: '#A8966F',
+  focusLite: '#F6EACB',
+  focus: '#E3D2A6',
+  focusDeep: '#9C8047',
   drift: '#3A4552',
-  driftDeep: '#1D2229',
-  driftEdge: '#8FC4D2',
+  driftLite: '#55677A',
+  driftDeep: '#171C23',
+  driftEdge: '#93C8D8',
   bone: '#E8E2D6',
   ink: '#08090B'
 };
 
-const hex = (h) => [
-  parseInt(h.slice(1, 3), 16),
-  parseInt(h.slice(3, 5), 16),
-  parseInt(h.slice(5, 7), 16)
-];
+const toRGB = (c) => {
+  if (c[0] === '#')
+    return [
+      parseInt(c.slice(1, 3), 16),
+      parseInt(c.slice(3, 5), 16),
+      parseInt(c.slice(5, 7), 16)
+    ];
+  const m = c.match(/-?\d+\.?\d*/g) || [0, 0, 0];
+  return [+m[0], +m[1], +m[2]];
+};
 
 export function mix(a, b, t, alpha = 1) {
-  const A = hex(a);
-  const B = hex(b);
+  const A = toRGB(a);
+  const B = toRGB(b);
   const c = A.map((v, i) => Math.round(v + (B[i] - v) * clamp(t, 0, 1)));
   return `rgba(${c[0]},${c[1]},${c[2]},${alpha})`;
 }
 
 export function rgba(h, a) {
-  const c = hex(h);
+  const c = toRGB(h);
   return `rgba(${c[0]},${c[1]},${c[2]},${a})`;
 }
 
+let fineTile = null;
 let grainTile = null;
-function grain() {
-  if (grainTile) return grainTile;
+
+function fine() {
+  if (fineTile) return fineTile;
   const c = document.createElement('canvas');
-  c.width = c.height = 140;
+  c.width = c.height = 128;
   const x = c.getContext('2d');
-  const img = x.createImageData(140, 140);
+  const img = x.createImageData(128, 128);
   for (let i = 0; i < img.data.length; i += 4) {
-    const v = Math.random();
-    const s = v < 0.5 ? 0 : 255;
+    const s = Math.random() < 0.5 ? 0 : 255;
     img.data[i] = img.data[i + 1] = img.data[i + 2] = s;
-    img.data[i + 3] = Math.random() < 0.35 ? 255 * (0.25 + Math.random() * 0.55) : 0;
+    img.data[i + 3] = Math.random() < 0.4 ? 255 * (0.2 + Math.random() * 0.6) : 0;
   }
   x.putImageData(img, 0, 0);
+  fineTile = c;
+  return c;
+}
+
+function grains() {
+  if (grainTile) return grainTile;
+  const S = 190;
+  const c = document.createElement('canvas');
+  c.width = c.height = S;
+  const x = c.getContext('2d');
+  for (let i = 0; i < 1500; i++) {
+    const px = Math.random() * S;
+    const py = Math.random() * S;
+    const r = 0.45 + Math.random() * 1.15;
+    const dark = Math.random() < 0.52;
+    x.fillStyle = dark
+      ? `rgba(0,0,0,${0.1 + Math.random() * 0.3})`
+      : `rgba(255,255,255,${0.1 + Math.random() * 0.38})`;
+    x.beginPath();
+    x.ellipse(px, py, r, r * (0.7 + Math.random() * 0.6), Math.random() * 3, 0, 6.284);
+    x.fill();
+  }
   grainTile = c;
   return c;
 }
 
-const seedOf = (n) => (Math.sin(n * 127.1) * 43758.5453) % 1;
+function pattern(ctx, tile, key) {
+  if (!ctx[key]) ctx[key] = ctx.createPattern(tile, 'repeat');
+  return ctx[key];
+}
 
-function curveFn(g, t, seed, amp) {
+const seedOf = (n) => Math.abs((Math.sin(n * 127.1) * 43758.5453) % 1);
+
+function curveFn(g, t, seed, amp, fine) {
   const y0 = yAt(g, t);
   const wpx = Math.max(8, wAt(g, t) * g.R);
   return (x) => {
     const d = clamp((x - g.cx) / wpx, -1, 1);
     const cone = -amp * Math.pow(1 - d * d, 1.3);
-    const n = Math.sin(d * 6.1 + seed * 9) * 0.8 + Math.sin(d * 2.7 - seed * 14) * 1.25;
+    let n = Math.sin(d * 6.1 + seed * 9) * 0.8 + Math.sin(d * 2.7 - seed * 14) * 1.25;
+    if (fine) n += Math.sin(d * 19.3 + seed * 5) * 0.42 + Math.sin(d * 33.7 - seed) * 0.22;
     return y0 + cone + n * amp * 0.28;
   };
 }
 
 function trace(ctx, fy, x0, x1, move) {
-  const steps = 34;
+  const steps = 44;
   for (let i = 0; i <= steps; i++) {
     const x = x0 + ((x1 - x0) * i) / steps;
     const y = fy(x);
@@ -69,24 +105,41 @@ function trace(ctx, fy, x0, x1, move) {
   }
 }
 
+function tintOf(type, seed) {
+  const k = seedOf(seed + 3);
+  if (type === 'drift') {
+    return {
+      deep: mix(PAL.driftDeep, PAL.drift, k * 0.22),
+      mid: mix(PAL.driftDeep, PAL.drift, 0.55 + k * 0.3),
+      lite: mix(PAL.drift, PAL.driftLite, 0.3 + k * 0.3)
+    };
+  }
+  return {
+    deep: mix('#574728', PAL.focusDeep, 0.2 + k * 0.55),
+    mid: mix(PAL.focusDeep, PAL.focus, 0.58 + k * 0.32),
+    lite: mix(PAL.focus, PAL.focusLite, 0.1 + k * 0.34)
+  };
+}
+
 export function drawStack(ctx, g, layers, opts = {}) {
   const {
     capacityMs = 1,
     shownMs = 0,
     hazeMs = 70000,
     amp = Math.min(10, g.R * 0.05),
-    grainAlpha = 0.16,
+    grainAlpha = 1,
     live = false
   } = opts;
 
   if (shownMs <= 0) return;
 
-  const xL = g.cx - g.R * 1.12;
-  const xR = g.cx + g.R * 1.12;
+  const xL = g.cx - g.R * 1.14;
+  const xR = g.cx + g.R * 1.14;
   const topT = tAtVol(g, shownMs / capacityMs);
   const flat = g.morph > 0.85;
-  const surfAmp = flat ? amp * 0.15 : amp;
-  const surf = curveFn(g, topT, 0.37, surfAmp);
+  const surfAmp = flat ? amp * 0.16 : amp;
+  const surf = curveFn(g, topT, 0.37, surfAmp, !flat);
+  const surfY = yAt(g, topT);
 
   ctx.save();
   vesselPath(ctx, g, 1.2);
@@ -114,10 +167,11 @@ export function drawStack(ctx, g, layers, opts = {}) {
     const y0 = yAt(g, t0);
     const y1 = yAt(g, t1);
     const last = k === bands.length - 1;
-    const lowA = k === 0 ? amp * 0.2 : amp * (flat ? 0.15 : 0.8);
-    const hiA = last ? surfAmp : amp * (flat ? 0.15 : 0.8);
-    const low = curveFn(g, t0, seedOf(b.i + 1), lowA);
-    const hi = last ? surf : curveFn(g, t1, seedOf(b.i + 2), hiA);
+    const lowA = k === 0 ? amp * 0.2 : amp * (flat ? 0.16 : 0.78);
+    const hiA = last ? surfAmp : amp * (flat ? 0.16 : 0.78);
+    const low = curveFn(g, t0, seedOf(b.i + 1), lowA, false);
+    const hi = last ? surf : curveFn(g, t1, seedOf(b.i + 2), hiA, false);
+    const c = tintOf(b.type, b.i);
 
     ctx.beginPath();
     trace(ctx, hi, xL, xR, true);
@@ -129,16 +183,13 @@ export function drawStack(ctx, g, layers, opts = {}) {
     }
     ctx.closePath();
 
-    const grad = ctx.createLinearGradient(0, y0 - 2, 0, y1 + 2);
-    if (b.type === 'drift') {
-      grad.addColorStop(0, PAL.driftDeep);
-      grad.addColorStop(0.45, PAL.drift);
-      grad.addColorStop(1, mix(PAL.drift, PAL.driftEdge, 0.22));
-    } else {
-      grad.addColorStop(0, PAL.focusDeep);
-      grad.addColorStop(0.55, mix(PAL.focusDeep, PAL.focus, 0.72));
-      grad.addColorStop(1, PAL.focus);
-    }
+    const q = 0.4 + seedOf(b.i + 7) * 0.32;
+    const grad = ctx.createLinearGradient(0, y0 - 1, 0, y1 + 1);
+    grad.addColorStop(0, c.deep);
+    grad.addColorStop(Math.min(0.2, q * 0.4), mix(c.deep, c.mid, 0.6));
+    grad.addColorStop(q, c.mid);
+    grad.addColorStop(Math.min(0.94, q + 0.3), c.lite);
+    grad.addColorStop(1, mix(c.mid, c.deep, 0.42));
     ctx.fillStyle = grad;
     ctx.fill();
 
@@ -146,63 +197,83 @@ export function drawStack(ctx, g, layers, opts = {}) {
       const span = Math.max(1, b.e - b.s);
       const hz = Math.min(1, hazeMs / span);
       const yh = y0 + (y1 - y0) * hz;
+      const haze = mix(PAL.drift, PAL.ink, 0.28);
       const hg = ctx.createLinearGradient(0, y0, 0, yh);
-      hg.addColorStop(0, rgba(PAL.drift, 0.82));
-      hg.addColorStop(0.35, rgba(PAL.drift, 0.4));
-      hg.addColorStop(1, rgba(PAL.drift, 0));
+      hg.addColorStop(0, rgba(haze, 0.72));
+      hg.addColorStop(0.32, rgba(haze, 0.34));
+      hg.addColorStop(1, rgba(haze, 0));
       ctx.fillStyle = hg;
       ctx.fill();
     }
 
-    ctx.save();
-    ctx.beginPath();
-    trace(ctx, low, xL, xR, true);
-    ctx.lineWidth = 1;
-    ctx.strokeStyle =
-      b.type === 'drift' ? rgba(PAL.driftEdge, 0.5) : rgba(PAL.ink, 0.42);
-    ctx.stroke();
-    ctx.restore();
+    if (k > 0) {
+      ctx.save();
+      ctx.beginPath();
+      trace(ctx, low, xL, xR, true);
+      ctx.lineWidth = 1.6;
+      ctx.strokeStyle = rgba(PAL.ink, 0.3);
+      ctx.stroke();
+      ctx.translate(0, -1.4);
+      ctx.beginPath();
+      trace(ctx, low, xL, xR, true);
+      ctx.lineWidth = 1;
+      ctx.strokeStyle =
+        b.type === 'drift' ? rgba(PAL.driftEdge, 0.3) : rgba(PAL.focusLite, 0.26);
+      ctx.stroke();
+      ctx.restore();
+    }
   });
 
-  const gt = grain();
-  const pat = ctx.createPattern(gt, 'repeat');
-  ctx.globalAlpha = grainAlpha;
   ctx.globalCompositeOperation = 'overlay';
-  ctx.fillStyle = pat;
-  ctx.fillRect(xL, yAt(g, topT) - 30, xR - xL, g.bottom - yAt(g, topT) + 70);
+  ctx.globalAlpha = 0.5 * grainAlpha;
+  ctx.fillStyle = pattern(ctx, grains(), '_pGrain');
+  ctx.fillRect(xL, surfY - 30, xR - xL, g.bottom - surfY + 74);
+  ctx.globalAlpha = 0.14 * grainAlpha;
+  ctx.fillStyle = pattern(ctx, fine(), '_pFine');
+  ctx.fillRect(xL, surfY - 30, xR - xL, g.bottom - surfY + 74);
   ctx.globalCompositeOperation = 'source-over';
   ctx.globalAlpha = 1;
 
   if (!flat) {
     const side = ctx.createLinearGradient(g.cx - g.R, 0, g.cx + g.R, 0);
-    side.addColorStop(0, 'rgba(0,0,0,0.5)');
-    side.addColorStop(0.26, 'rgba(0,0,0,0.05)');
-    side.addColorStop(0.5, 'rgba(255,255,255,0.05)');
-    side.addColorStop(0.76, 'rgba(0,0,0,0.08)');
-    side.addColorStop(1, 'rgba(0,0,0,0.55)');
+    side.addColorStop(0, 'rgba(0,0,0,0.82)');
+    side.addColorStop(0.045, 'rgba(0,0,0,0.5)');
+    side.addColorStop(0.17, 'rgba(0,0,0,0.16)');
+    side.addColorStop(0.38, 'rgba(255,255,255,0.045)');
+    side.addColorStop(0.56, 'rgba(255,255,255,0.075)');
+    side.addColorStop(0.8, 'rgba(0,0,0,0.14)');
+    side.addColorStop(0.95, 'rgba(0,0,0,0.5)');
+    side.addColorStop(1, 'rgba(0,0,0,0.85)');
     ctx.fillStyle = side;
     ctx.fillRect(g.cx - g.R, g.top, g.R * 2, g.h + 40);
   }
 
-  const deep = ctx.createLinearGradient(0, g.bottom, 0, g.bottom - g.h * 0.55);
-  deep.addColorStop(0, 'rgba(0,0,0,0.42)');
+  const deep = ctx.createLinearGradient(0, g.bottom, 0, g.bottom - g.h * 0.6);
+  deep.addColorStop(0, 'rgba(0,0,0,0.44)');
   deep.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = deep;
-  ctx.fillRect(xL, g.bottom - g.h * 0.55, xR - xL, g.h * 0.55 + 40);
+  ctx.fillRect(xL, g.bottom - g.h * 0.6, xR - xL, g.h * 0.6 + 40);
+
+  const activeType = bands.length ? bands[bands.length - 1].type : 'focus';
+  const sun = ctx.createLinearGradient(0, surfY - 2, 0, surfY + Math.min(46, g.h * 0.09));
+  sun.addColorStop(0, rgba(activeType === 'drift' ? PAL.driftEdge : PAL.focusLite, 0.17));
+  sun.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = sun;
+  ctx.fillRect(xL, surfY - 2, xR - xL, Math.min(48, g.h * 0.09));
 
   ctx.restore();
 
-  const activeType = bands.length ? bands[bands.length - 1].type : 'focus';
   ctx.save();
   vesselPath(ctx, g, 1.2);
   ctx.clip();
+  const edgeW = wAt(g, topT) * g.R;
   ctx.beginPath();
-  trace(ctx, surf, g.cx - wAt(g, topT) * g.R, g.cx + wAt(g, topT) * g.R, true);
-  ctx.lineWidth = 1.1;
+  trace(ctx, surf, g.cx - edgeW, g.cx + edgeW, true);
+  ctx.lineWidth = 1.2;
   ctx.strokeStyle =
     activeType === 'drift'
-      ? rgba(PAL.driftEdge, live ? 0.75 : 0.4)
-      : rgba(PAL.focus, live ? 0.6 : 0.3);
+      ? rgba(PAL.driftEdge, live ? 0.8 : 0.45)
+      : rgba(PAL.focusLite, live ? 0.72 : 0.4);
   ctx.stroke();
   ctx.restore();
 }

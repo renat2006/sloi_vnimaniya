@@ -128,8 +128,9 @@ export class Stage {
     const topT = tAtVol(g, this.shown / cap);
     const surfY = yAt(g, topT);
 
-    this.shadow(ctx, g);
-    if (this.morph < 0.98) this.aura(ctx, g);
+    const fill = clamp(this.shown / cap, 0, 1);
+    this.shadow(ctx, g, fill);
+    if (this.morph < 0.98) this.aura(ctx, g, fill, surfY);
 
     drawStack(ctx, g, layers, {
       capacityMs: cap,
@@ -138,7 +139,7 @@ export class Stage {
       amp: Math.min(10, g.R * 0.05) * (1 - this.morph * 0.85)
     });
 
-    if (this.morph < 0.995) this.glass(ctx, g, 1 - this.morph);
+    if (this.morph < 0.995) this.glass(ctx, g, 1 - this.morph, surfY, fill);
     if (this.morph > 0.02) this.coreFrame(ctx, g, this.morph);
 
     if (!s.ended && this.morph === 0) {
@@ -156,11 +157,12 @@ export class Stage {
     }
   }
 
-  shadow(ctx, g) {
+  shadow(ctx, g, fill) {
     const y = g.bottom + 14;
-    const r = g.R * 1.1;
+    const r = g.R * 1.15;
     const grd = ctx.createRadialGradient(g.cx, y, 0, g.cx, y, r);
-    grd.addColorStop(0, 'rgba(0,0,0,0.55)');
+    grd.addColorStop(0, 'rgba(0,0,0,0.6)');
+    grd.addColorStop(0.55, mix(PAL.ink, PAL.focusDeep, 0.18 * fill, 0.34));
     grd.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.save();
     ctx.translate(g.cx, y);
@@ -173,74 +175,149 @@ export class Stage {
     ctx.restore();
   }
 
-  aura(ctx, g) {
+  aura(ctx, g, fill, surfY) {
+    if (fill > 0.02) {
+      const cy = (surfY + g.bottom) / 2;
+      const warm = ctx.createRadialGradient(g.cx, cy, g.R * 0.2, g.cx, cy, g.R * 2.7);
+      warm.addColorStop(0, rgba(PAL.focus, 0.1 * fill + 0.02));
+      warm.addColorStop(0.45, rgba(PAL.focusDeep, 0.05 * fill));
+      warm.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = warm;
+      ctx.fillRect(0, 0, this.W, this.H);
+    }
     const a = this.driftGlow;
     if (a < 0.01) return;
     const cy = (g.top + g.bottom) / 2;
     const grd = ctx.createRadialGradient(g.cx, cy, g.R * 0.4, g.cx, cy, g.R * 3);
-    grd.addColorStop(0, rgba(PAL.driftEdge, 0.14 * a));
+    grd.addColorStop(0, rgba(PAL.driftEdge, 0.15 * a));
     grd.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = grd;
     ctx.fillRect(0, 0, this.W, this.H);
   }
 
-  glass(ctx, g, a) {
+  glass(ctx, g, a, surfY, fill) {
     ctx.save();
     ctx.globalAlpha = a;
 
     ctx.save();
     vesselPath(ctx, g, 1);
     ctx.clip();
+
     const body = ctx.createLinearGradient(g.cx - g.R, 0, g.cx + g.R, 0);
-    body.addColorStop(0, rgba(PAL.bone, 0.055));
-    body.addColorStop(0.35, rgba(PAL.bone, 0.012));
-    body.addColorStop(0.72, rgba(PAL.bone, 0.02));
-    body.addColorStop(1, rgba(PAL.bone, 0.07));
+    body.addColorStop(0, rgba(PAL.bone, 0.05));
+    body.addColorStop(0.3, rgba(PAL.bone, 0.008));
+    body.addColorStop(0.7, rgba(PAL.bone, 0.014));
+    body.addColorStop(1, rgba(PAL.bone, 0.058));
     ctx.fillStyle = body;
     ctx.fillRect(g.cx - g.R, g.top, g.R * 2, g.h);
 
+    if (fill > 0.02) {
+      const bounce = ctx.createRadialGradient(g.cx, surfY, g.R * 0.05, g.cx, surfY, g.R * 1.05);
+      bounce.addColorStop(0, rgba(this.drift ? PAL.driftEdge : PAL.focusLite, 0.07 * a));
+      bounce.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = bounce;
+      ctx.fillRect(g.cx - g.R, surfY - g.R * 1.05, g.R * 2, g.R * 2.1);
+    }
+
     const sheen = (xc, halfW, peak) => {
-      const hz = ctx.createLinearGradient(xc - halfW, 0, xc + halfW, 0);
-      hz.addColorStop(0, rgba(PAL.bone, 0));
-      hz.addColorStop(0.5, rgba(PAL.bone, peak));
+      const band = (y, h, mul) => {
+        if (h <= 0) return;
+        const hz = ctx.createLinearGradient(xc - halfW, 0, xc + halfW, 0);
+        hz.addColorStop(0, rgba(PAL.bone, 0));
+        hz.addColorStop(0.42, rgba(PAL.bone, peak * mul * 0.5));
+        hz.addColorStop(0.5, rgba(PAL.bone, peak * mul));
+        hz.addColorStop(0.58, rgba(PAL.bone, peak * mul * 0.45));
+        hz.addColorStop(1, rgba(PAL.bone, 0));
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.fillStyle = hz;
+        ctx.fillRect(xc - halfW, y, halfW * 2, h);
+        ctx.restore();
+      };
+      const cut = clamp(surfY, g.top, g.bottom);
+      band(g.top, cut - g.top, 1);
+      band(cut, g.bottom - cut, 0.22);
+    };
+    sheen(g.cx - g.R * 0.64, g.R * 0.13, 0.17);
+    sheen(g.cx + g.R * 0.52, g.R * 0.07, 0.085);
+
+    const wall = (dir) => {
+      const x0 = g.cx + dir * g.R;
+      const wd = g.R * 0.075;
+      const hz = ctx.createLinearGradient(x0, 0, x0 - dir * wd, 0);
+      hz.addColorStop(0, rgba(PAL.bone, 0.26));
+      hz.addColorStop(0.35, rgba(PAL.bone, 0.06));
       hz.addColorStop(1, rgba(PAL.bone, 0));
       ctx.save();
-      ctx.fillStyle = hz;
       ctx.globalCompositeOperation = 'lighter';
-      ctx.fillRect(xc - halfW, g.top, halfW * 2, g.h);
+      ctx.fillStyle = hz;
+      ctx.fillRect(Math.min(x0, x0 - dir * wd), g.top, wd, g.h);
       ctx.restore();
     };
-    sheen(g.cx - g.R * 0.66, g.R * 0.1, 0.13);
-    sheen(g.cx + g.R * 0.55, g.R * 0.055, 0.07);
+    wall(-1);
+    wall(1);
+
+    const lensY = g.bottom - g.R * 0.26;
+    const lens = ctx.createRadialGradient(g.cx, lensY, 0, g.cx, lensY, g.R * 0.82);
+    lens.addColorStop(0, rgba(PAL.bone, 0.055));
+    lens.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = lens;
+    ctx.fillRect(g.cx - g.R, lensY - g.R, g.R * 2, g.R * 2);
+    ctx.restore();
 
     if (this.driftGlow > 0.01) {
       const rim = ctx.createLinearGradient(g.cx + g.R * 0.2, 0, g.cx + g.R, 0);
       rim.addColorStop(0, rgba(PAL.driftEdge, 0));
-      rim.addColorStop(1, rgba(PAL.driftEdge, 0.3 * this.driftGlow));
+      rim.addColorStop(1, rgba(PAL.driftEdge, 0.32 * this.driftGlow));
       ctx.fillStyle = rim;
       ctx.fillRect(g.cx, g.top, g.R, g.h);
       const rim2 = ctx.createLinearGradient(g.cx - g.R, 0, g.cx - g.R * 0.3, 0);
-      rim2.addColorStop(0, rgba(PAL.driftEdge, 0.18 * this.driftGlow));
+      rim2.addColorStop(0, rgba(PAL.driftEdge, 0.2 * this.driftGlow));
       rim2.addColorStop(1, rgba(PAL.driftEdge, 0));
       ctx.fillStyle = rim2;
       ctx.fillRect(g.cx - g.R, g.top, g.R * 0.7, g.h);
     }
     ctx.restore();
 
+    const k = this.driftGlow * 0.6;
+    const line = ctx.createLinearGradient(0, g.top, 0, g.bottom);
+    line.addColorStop(0, mix(PAL.bone, PAL.driftEdge, k, 0.5));
+    line.addColorStop(0.3, mix(PAL.bone, PAL.driftEdge, k, 0.28));
+    line.addColorStop(0.85, mix(PAL.bone, PAL.driftEdge, k, 0.34));
+    line.addColorStop(1, mix(PAL.bone, PAL.driftEdge, k, 0.2));
+    vesselPath(ctx, g, -1.4);
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = rgba(PAL.ink, 0.72);
+    ctx.stroke();
+
     vesselPath(ctx, g, 0);
     ctx.lineWidth = 1.2;
-    ctx.strokeStyle = mix(PAL.bone, PAL.driftEdge, this.driftGlow * 0.6, 0.34 + 0.16 * this.driftGlow);
+    ctx.strokeStyle = line;
     ctx.stroke();
 
     vesselPath(ctx, g, 3.5);
     ctx.lineWidth = 0.8;
-    ctx.strokeStyle = rgba(PAL.bone, 0.08);
+    ctx.strokeStyle = rgba(PAL.bone, 0.07);
     ctx.stroke();
+
+    if (fill > 0.015 && this.morph < 0.4) {
+      const ew = wAt(g, tAtVol(g, fill)) * g.R;
+      ctx.fillStyle = rgba(this.drift ? PAL.driftEdge : PAL.focusLite, 0.5);
+      ctx.fillRect(g.cx - ew - 1, surfY - 1, 3, 2);
+      ctx.fillRect(g.cx + ew - 2, surfY - 1, 3, 2);
+    }
 
     const nw = wAt(g, 1) * g.R;
     ctx.beginPath();
     ctx.ellipse(g.cx, g.top, nw, nw * 0.26, 0, 0, Math.PI * 2);
-    ctx.strokeStyle = rgba(PAL.bone, 0.3);
+    ctx.strokeStyle = rgba(PAL.bone, 0.34);
+    ctx.lineWidth = 1.1;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.ellipse(g.cx, g.top + 2.4, nw - 2.6, (nw - 2.6) * 0.26, 0, 0, Math.PI * 2);
+    ctx.strokeStyle = rgba(PAL.bone, 0.13);
     ctx.lineWidth = 1;
     ctx.stroke();
     ctx.restore();
@@ -295,7 +372,7 @@ export class Stage {
     const sway = Math.sin(ts / 700) * (this.drift ? 3.4 : 1.1);
     const w = this.drift ? 2.6 : 1.5;
     const grd = ctx.createLinearGradient(0, g.top - 30, 0, surfY);
-    const c = this.drift ? PAL.driftEdge : PAL.focus;
+    const c = this.drift ? PAL.driftEdge : PAL.focusLite;
     grd.addColorStop(0, rgba(c, 0));
     grd.addColorStop(0.25, rgba(c, this.drift ? 0.34 : 0.22));
     grd.addColorStop(1, rgba(c, this.drift ? 0.5 : 0.34));
@@ -343,7 +420,7 @@ export class Stage {
         }
         continue;
       }
-      ctx.fillStyle = p.cold ? rgba(PAL.driftEdge, 0.62) : rgba(PAL.focus, 0.58);
+      ctx.fillStyle = p.cold ? rgba(PAL.driftEdge, 0.66) : rgba(PAL.focusLite, 0.6);
       ctx.fillRect(p.x, p.y, p.s, p.s * 2.8);
     }
     for (let i = this.motes.length - 1; i >= 0; i--) {
@@ -357,7 +434,7 @@ export class Stage {
         continue;
       }
       ctx.globalAlpha = Math.max(0, m.life) * 0.5;
-      ctx.fillStyle = rgba(PAL.focus, 1);
+      ctx.fillStyle = rgba(PAL.focusLite, 1);
       ctx.fillRect(m.x, m.y, m.s, m.s);
     }
     ctx.globalAlpha = 1;

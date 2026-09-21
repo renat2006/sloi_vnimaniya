@@ -20,7 +20,7 @@ export function paintCore(canvas, core, w, h, opts = {}) {
     capacityMs: core.capacityMs,
     shownMs: core.durationMs,
     amp: 1.4,
-    grainAlpha: 0.13
+    grainAlpha: 0.75
   });
   ctx.strokeStyle = rgba(PAL.bone, opts.frame ?? 0.16);
   ctx.lineWidth = 1;
@@ -64,7 +64,7 @@ function mountCores(root, all) {
     el.innerHTML = `
       <canvas></canvas>
       <div class="card-info">
-        <p class="card-idx">Керн № ${String(total - i).padStart(3, '0')}${c.demo ? ' · образец' : ''}</p>
+        <p class="card-idx">Керн № ${String(total - i).padStart(3, '0')}</p>
         <p class="card-title">${fmtShort(c.durationMs)}</p>
         <p class="card-date">${dateLine(c.startedAt)}</p>
         <div class="card-rows">
