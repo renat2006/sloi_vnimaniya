@@ -319,7 +319,7 @@ body[data-view="room"] #view-room { opacity: 1; pointer-events: auto; visibility
 .switch input:checked + .sw-box { border-color: var(--bone); }
 .switch input:checked + .sw-box::after { opacity: 1; }
 .sw-txt { font-size: 11.5px; letter-spacing: 0.14em; color: rgba(232,226,214,0.74); }
-.sw-txt i { display: block; font-style: normal; font-size: 10.5px; color: var(--dim2); margin-top: 5px; letter-spacing: 0.08em; }
+.sw-txt i { display: block; font-style: normal; font-size: 10px; color: var(--dim2); margin-top: 4px; letter-spacing: 0.06em; }
 
 .ritual-go { display: flex; align-items: center; gap: 26px; padding-top: 10px; border-top: 1px solid var(--line); margin-top: 4px; }
 
@@ -328,12 +328,18 @@ body[data-view="room"] #view-room { opacity: 1; pointer-events: auto; visibility
   padding: 14px 0 2px; min-height: 22px;
 }
 .ro--big dd { font-size: 44px; }
-.witness-badge {
-  position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%);
-  font-size: 10px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--dim2);
-  opacity: 0; transition: opacity 0.6s var(--ease); pointer-events: none;
+.stage-badges {
+  position: absolute; left: 0; right: 0; bottom: 6px; display: flex;
+  justify-content: center; gap: 18px; flex-wrap: wrap; pointer-events: none;
 }
-.witness-badge.is-on { opacity: 1; }
+.badge {
+  display: none; align-items: center; gap: 7px;
+  font-size: 9.5px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--dim2);
+}
+.badge.is-on { display: inline-flex; animation: rise 0.6s var(--ease) both; }
+.badge::before { content: ""; width: 4px; height: 4px; border-radius: 50%; background: currentColor; opacity: 0.7; }
+
+.switches { display: grid; gap: 13px; }
 
 .ask { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; background: rgba(8,9,11,0.72); backdrop-filter: blur(10px); opacity: 0; pointer-events: none; transition: opacity 0.5s var(--ease); }
 .ask.is-on { opacity: 1; pointer-events: auto; }
@@ -433,9 +439,12 @@ body[data-view="room"] #view-room { opacity: 1; pointer-events: auto; visibility
   .tombstone { order: 7; margin-top: 36px; max-width: none; }
 
   .ritual { max-height: none; overflow: visible; width: 100%; }
+  .vow { gap: 14px; }
+  .rule { margin-top: 8px; }
+  .oath { padding-left: 16px; }
   .ritual-go {
     position: sticky; bottom: calc(-26px - env(safe-area-inset-bottom));
-    margin: 4px 0 0; padding: 14px 0 calc(30px + env(safe-area-inset-bottom));
+    margin: 2px 0 0; padding: 12px 0 calc(24px + env(safe-area-inset-bottom));
     background: linear-gradient(to top, var(--ink) 62%, rgba(8, 9, 11, 0.92) 85%, rgba(8, 9, 11, 0));
     flex-wrap: wrap; gap: 12px 14px; border-top: 1px solid var(--line);
   }

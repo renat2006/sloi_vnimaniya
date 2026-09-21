@@ -95,22 +95,36 @@
         </label>
 
         <div class="field">
-          <span class="lbl">Круг разрешённого <i>— сюда можно уходить без разрыва</i></span>
+          <span class="lbl">Круг разрешённого <i>— туда можно уходить без разрыва</i></span>
           <div class="chips" id="circle"></div>
           <div class="chip-add">
             <input id="chip-new" maxlength="24" placeholder="добавить: Figma, словарь, бумага" autocomplete="off">
             <button class="ghost" id="chip-go">+</button>
           </div>
-          <p class="side-note rule">Отлучка короче 8 секунд ложится разрывом молча — о более длинных приложение спросит, когда вы вернётесь.</p>
+          <p class="side-note rule">Отлучка короче 8 секунд ложится разрывом молча. О длинной приложение спросит на возвращении.</p>
         </div>
 
         <p class="oath" id="oath"></p>
 
-        <label class="switch">
-          <input type="checkbox" id="witness">
-          <span class="sw-box"></span>
-          <span class="sw-txt">Войти в зал присутствия<i id="witness-note">передаются имя, доля заполнения и состояние; готовый керн ложится в общее собрание</i></span>
-        </label>
+        <div class="field switches">
+          <label class="switch">
+            <input type="checkbox" id="awake" checked>
+            <span class="sw-box"></span>
+            <span class="sw-txt">Держать экран<i>иначе сон экрана считается разрывом</i></span>
+          </label>
+
+          <label class="switch">
+            <input type="checkbox" id="sound-vow">
+            <span class="sw-box"></span>
+            <span class="sw-txt">Звук потока<i>шорох песка, тон на разрыве</i></span>
+          </label>
+
+          <label class="switch">
+            <input type="checkbox" id="witness">
+            <span class="sw-box"></span>
+            <span class="sw-txt">Войти в зал присутствия<i id="witness-note">видны имя, заполнение и состояние</i></span>
+          </label>
+        </div>
 
         <div class="ritual-go">
           <div class="picks" role="radiogroup" aria-label="Длительность сеанса">
@@ -144,7 +158,10 @@
     <div class="vessel-wrap">
       <canvas id="vessel"></canvas>
       <div class="tip" id="tip"></div>
-      <div class="witness-badge" id="witness-badge"></div>
+      <div class="stage-badges">
+        <span class="badge" id="awake-badge">экран не гаснет</span>
+        <span class="badge" id="witness-badge"></span>
+      </div>
     </div>
 
     <aside class="rail rail--right">
@@ -248,6 +265,18 @@
     <div class="ask-actions">
       <button class="ghost" id="ask-out">Вне круга</button>
       <button class="ghost" id="ask-skip">Не отвечать</button>
+    </div>
+  </div>
+</div>
+
+<div class="ask" id="confirm">
+  <div class="ask-box">
+    <p class="overline">Колба заполнена на <span id="cf-pct"></span></p>
+    <h3>Извлечь керн сейчас?</h3>
+    <p class="ask-sub">Слой оборвётся на этом месте. Керн сохранится в архиве, но останется незавершённым.</p>
+    <div class="ask-actions">
+      <button class="ghost" id="cf-yes">Извлечь</button>
+      <button class="ghost" id="cf-no">Продолжить сеанс</button>
     </div>
   </div>
 </div>

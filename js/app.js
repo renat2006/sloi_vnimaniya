@@ -25,6 +25,40 @@ let peers = [];
 let wantWitness = false;
 let pendingDrift = null;
 let savedAt = 0;
+let wakeLock = null;
+let wantAwake = true;
+let warnedAwake = false;
+let hintTimer = null;
+
+const buzz = (pattern) => {
+  try {
+    if (navigator.vibrate) navigator.vibrate(pattern);
+  } catch {}
+};
+
+async function holdScreen(on) {
+  wantAwake = on;
+  try {
+    if (on && 'wakeLock' in navigator && !wakeLock) {
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', () => {
+        wakeLock = null;
+        $('#awake-badge').classList.remove('is-on');
+      });
+    } else if (!on && wakeLock) {
+      await wakeLock.release();
+      wakeLock = null;
+    }
+  } catch {
+    wakeLock = null;
+  }
+  const live = !!session && !session.ended;
+  $('#awake-badge').classList.toggle('is-on', !!wakeLock && live);
+  if (on && !wakeLock && live && !warnedAwake) {
+    warnedAwake = true;
+    toast('удержать экран не удалось — телефон может гаснуть, и сон засчитается разрывом', 6000);
+  }
+}
 
 const esc = (s) => String(s).replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' })[c]);
 
@@ -125,6 +159,7 @@ function renderOath() {
 
 function begin() {
   const task = $('#task').value.trim();
+  cfg = store.setConfig({ lastTask: task, lastMin: capacityMin });
   session = createSession(capacityMin * 60000, task);
   session.witnessed = wantWitness && presence.live;
   focused = true;
@@ -147,6 +182,19 @@ function begin() {
   if (session.witnessed) {
     presence.join(cfg.room, ME, { name: cfg.name, fill: 0, mode: 'focus', strata: 1 });
   }
+  warnedAwake = false;
+  holdScreen($('#awake').checked);
+  buzz(14);
+  amb.ping(396, 2, 0.08);
+  clearTimeout(hintTimer);
+  if (!cfg.taught) {
+    hintTimer = setTimeout(() => {
+      if (session && !session.ended) {
+        toast('попробуйте уйти в другое приложение и вернуться — увидите, как ложится слой разрыва', 7000);
+        cfg = store.setConfig({ taught: true });
+      }
+    }, 9000);
+  }
   go('stage');
 }
 
@@ -168,8 +216,10 @@ function setFocused(v) {
       pendingDrift = last;
       ask(last.end - last.start);
     }
+    buzz(12);
   } else {
     amb.rupture();
+    buzz([20, 70, 20]);
     document.title = '◦ разрыв растёт — слои внимания';
   }
   store.saveLive(session, at);
@@ -285,6 +335,7 @@ function hud(trueMs) {
         stage.targetMs = null;
         stage.targetHit = 1;
         amb.ping(660, 3.4, 0.1);
+        buzz([12, 50, 12, 50, 26]);
         toast('новый длиннейший слой');
       }
     } else stage.targetMs = trueMs - run + best;
@@ -418,6 +469,10 @@ function finish(auto) {
   stage.targetMs = null;
   amb.mode('focus');
   amb.ping(528, 4, 0.1);
+  buzz([30, 90, 30]);
+  clearTimeout(hintTimer);
+  holdScreen(false);
+  $('#awake-badge').classList.remove('is-on');
   stage.extract();
   body.dataset.phase = 'result';
   presence.set({ mode: 'done', fill: e / session.capacityMs });
@@ -576,7 +631,29 @@ $('#witness').addEventListener('change', (e) => {
     toast('зал не отвечает');
   }
 });
-$('#finish').addEventListener('click', () => finish(false));
+function askFinish() {
+  if (!session || session.ended) return;
+  const fill = Math.min(1, elapsed(session) / session.capacityMs);
+  if (fill >= 0.6 || elapsed(session) < 30000) return finish(false);
+  $('#cf-pct').textContent = Math.round(fill * 100) + '%';
+  $('#confirm').classList.add('is-on');
+}
+$('#finish').addEventListener('click', askFinish);
+$('#cf-no').addEventListener('click', () => $('#confirm').classList.remove('is-on'));
+$('#cf-yes').addEventListener('click', () => {
+  $('#confirm').classList.remove('is-on');
+  finish(false);
+});
+$('#awake').addEventListener('change', (e) => {
+  cfg = store.setConfig({ awake: e.target.checked });
+  if (session && !session.ended) holdScreen(e.target.checked);
+});
+$('#sound-vow').addEventListener('change', async (e) => {
+  $('#sound').setAttribute('aria-pressed', String(e.target.checked));
+  cfg = store.setConfig({ sound: e.target.checked });
+  amb.boot();
+  await amb.enable(e.target.checked);
+});
 $('#again').addEventListener('click', () => go('ritual'));
 $('#to-archive').addEventListener('click', () => go('archive'));
 $('#png').addEventListener('click', () => lastCore && archive.exportPNG(lastCore, lastIndex));
@@ -602,7 +679,9 @@ $('#ask-skip').addEventListener('click', () => answer(null));
 $('#sound').addEventListener('click', async (e) => {
   const on = e.currentTarget.getAttribute('aria-pressed') === 'true';
   e.currentTarget.setAttribute('aria-pressed', String(!on));
+  $('#sound-vow').checked = !on;
   cfg = store.setConfig({ sound: !on });
+  amb.boot();
   await amb.enable(!on);
 });
 document.querySelectorAll('.tab').forEach((t) =>
@@ -664,12 +743,14 @@ $('#ex-copy').addEventListener('click', async () => {
 
 window.addEventListener('blur', () => setFocused(false));
 window.addEventListener('focus', () => setFocused(true));
-document.addEventListener('visibilitychange', () =>
-  setFocused(!document.hidden && document.hasFocus())
-);
+document.addEventListener('visibilitychange', () => {
+  setFocused(!document.hidden && document.hasFocus());
+  if (!document.hidden && wantAwake && session && !session.ended) holdScreen(true);
+});
 window.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
-  if ($('#ask').classList.contains('is-on')) answer(null);
+  if ($('#confirm').classList.contains('is-on')) $('#confirm').classList.remove('is-on');
+  else if ($('#ask').classList.contains('is-on')) answer(null);
   else if (body.dataset.sheet === '1') sheet(false);
 });
 window.addEventListener('beforeunload', (e) => {
@@ -685,8 +766,19 @@ window.addEventListener('pointermove', (e) => {
 });
 
 renderCircle();
+$('#task').value = cfg.lastTask || '';
+if (cfg.lastMin) {
+  const pick = [...document.querySelectorAll('.pick')].find((b) => +b.dataset.min === cfg.lastMin);
+  if (pick) {
+    document.querySelectorAll('.pick').forEach((x) => x.classList.remove('is-on'));
+    pick.classList.add('is-on');
+    capacityMin = cfg.lastMin;
+  }
+}
+$('#awake').checked = cfg.awake !== false;
+$('#sound-vow').checked = !!cfg.sound;
+$('#sound').setAttribute('aria-pressed', String(!!cfg.sound));
 renderOath();
-$('#sound').setAttribute('aria-pressed', 'false');
 const resumed = resume();
 
 if (location.hash.startsWith('#s=')) {
