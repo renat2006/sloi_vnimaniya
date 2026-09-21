@@ -21,7 +21,7 @@
   <nav class="nav">
     <button data-go="intro" class="lnk">Экспликация</button>
     <button data-go="stage" class="lnk">Сеанс</button>
-    <button data-go="room" class="lnk">Зал</button>
+    <button data-go="room" class="lnk">Зал<span class="live-dot" id="live-dot"></span></button>
     <button data-go="archive" class="lnk">Архив</button>
     <button id="sound" class="lnk sound" aria-pressed="false"><span class="eq"><i></i><i></i><i></i></span><span class="txt">Звук</span></button>
   </nav>
@@ -109,7 +109,7 @@
         <label class="switch">
           <input type="checkbox" id="witness">
           <span class="sw-box"></span>
-          <span class="sw-txt">Войти в зал присутствия<i id="witness-note">передаются только имя, доля заполнения и состояние</i></span>
+          <span class="sw-txt">Войти в зал присутствия<i id="witness-note">передаются имя, доля заполнения и состояние; готовый керн ложится в общее собрание</i></span>
         </label>
 
         <div class="ritual-go">
@@ -134,9 +134,9 @@
       <div class="readouts">
         <div class="ro ro--big"><dt>Слой сейчас</dt><dd id="ro-run">00:00</dd></div>
         <div class="ro"><dt>Прошло</dt><dd id="ro-time">00:00</dd></div>
-        <div class="ro"><dt>Глубина фокуса</dt><dd id="ro-depth">100%</dd></div>
+        <div class="ro ro--hide"><dt>Глубина фокуса</dt><dd id="ro-depth">100%</dd></div>
         <div class="ro"><dt>Разрывов</dt><dd id="ro-breaks">0</dd></div>
-        <div class="ro"><dt>Индекс дробления</dt><dd id="ro-frag">0.00</dd></div>
+        <div class="ro ro--hide"><dt>Индекс дробления</dt><dd id="ro-frag">0.00</dd></div>
       </div>
       <p class="rail-note" id="rail-note">Не переключайтесь. Наблюдайте, как оседает время.</p>
     </aside>
@@ -154,7 +154,8 @@
       </div>
       <ol class="journal" id="journal"></ol>
       <div class="stage-actions">
-        <button class="ghost" id="finish">Завершить и извлечь керн</button>
+        <button class="ghost" id="journal-toggle">Журнал</button>
+        <button class="ghost" id="finish"><span class="t-full">Завершить и извлечь керн</span><span class="t-short">Извлечь керн</span></button>
       </div>
 
       <div class="wall-label" id="label">
@@ -188,6 +189,10 @@
       <div class="room-main">
         <p class="room-note">Здесь нет рейтинга — только присутствие. Гипотеза перформанса: при свидетелях доля фокуса выше. Ваш собственный архив её и проверяет: каждый керн помечен, был ли он одиноким.</p>
         <div class="wall" id="wall"></div>
+        <div class="feed-block">
+          <p class="overline">Что происходит <span class="feed-live" id="feed-live"></span></p>
+          <ol class="feed" id="feed"></ol>
+        </div>
       </div>
       <aside class="room-side">
         <div class="side-block">
@@ -199,6 +204,11 @@
           </div>
           <button class="ghost wide" id="ex-copy">Скопировать ссылку на последний керн</button>
           <div class="guests" id="guests"></div>
+        </div>
+        <div class="side-block">
+          <p class="overline">Общее собрание <span class="side-count" id="shared-count"></span></p>
+          <p class="side-note">Керны, извлечённые при свидетелях, ложатся сюда сами и появляются у всех без перезагрузки.</p>
+          <div class="shared" id="shared"></div>
         </div>
         <div class="side-block">
           <p class="overline">Коллективный керн</p>

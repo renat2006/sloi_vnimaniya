@@ -24,13 +24,41 @@ let hudAt = 0;
 let peers = [];
 let wantWitness = false;
 let pendingDrift = null;
+let savedAt = 0;
 
 const esc = (s) => String(s).replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' })[c]);
 
-const presence = new Presence((list) => {
-  peers = list;
-  if (body.dataset.view === 'room') renderWall();
-  updateBadge();
+const FEED_TXT = {
+  join: 'вошёл в зал',
+  leave: 'вышел',
+  rupture: 'разрыв',
+  resume: 'вернулся',
+  core: 'извлёк керн'
+};
+
+const presence = new Presence({
+  onPeers: (list) => {
+    peers = list;
+    renderWall();
+    updateBadge();
+    updateLiveDot();
+  },
+  onFeed: (list, ev) => {
+    renderFeed(list);
+    if (ev && ev.kind === 'core') renderShared();
+  },
+  onStatus: (s) => {
+    const el = $('#net-state');
+    const txt = {
+      live: 'живой зал · на связи',
+      connecting: 'переподключение…',
+      offline: presence.live ? 'зал доступен · вы не вошли' : 'локальный режим · сервер не запущен'
+    };
+    el.textContent = txt[s] || s;
+    el.classList.toggle('is-live', s === 'live');
+    $('#join').textContent = presence.joined ? 'Выйти' : 'Войти';
+    updateLiveDot();
+  }
 });
 
 const stage = new Stage($('#vessel'), {
@@ -111,7 +139,9 @@ function begin() {
   stage.setDrift(false);
   stage.attach(session);
   stage.targetMs = cfg.bestMs > 0 ? cfg.bestMs : null;
+  sheet(false);
   amb.mode('focus');
+  store.saveLive(session, 0);
   journal();
   updateBadge();
   if (session.witnessed) {
@@ -142,7 +172,49 @@ function setFocused(v) {
     amb.rupture();
     document.title = '◦ разрыв растёт — слои внимания';
   }
+  store.saveLive(session, at);
   journal();
+}
+
+function resume() {
+  const v = store.loadLive();
+  if (!v) return false;
+  const gap = Math.max(0, Date.now() - v.savedAt);
+  if (gap > 6 * 3600000) {
+    store.dropLive();
+    return false;
+  }
+  session = createSession(v.capacityMs, v.task);
+  session.startedAt = v.startedAt;
+  session.witnessed = !!v.witnessed;
+  session.layers = v.layers;
+  const open = session.layers[session.layers.length - 1];
+  if (open.end == null) open.end = v.elapsedMs;
+  session.layers.push({ type: 'drift', start: v.elapsedMs, end: null });
+  const total = v.elapsedMs + gap;
+  session.t0 = performance.now() - total;
+  focused = false;
+
+  capacityMin = Math.round(v.capacityMs / 60000);
+  $('#cap-label').textContent = `колба ${capacityMin} мин`;
+  $('#task-line').textContent = v.task ? `« ${v.task} »` : '';
+  $('.state-name').textContent = 'Разрыв';
+  body.dataset.phase = 'live';
+  body.dataset.drift = '1';
+  stage.setDrift(true);
+  stage.attach(session);
+  stage.targetMs = cfg.bestMs > 0 ? cfg.bestMs : null;
+  journal();
+  go('stage');
+
+  if (total >= session.capacityMs) {
+    finish(true);
+    toast('колба заполнилась, пока вас не было — керн извлечён');
+    return true;
+  }
+  toast(`сеанс восстановлен · отсутствие ${fmtShort(gap)} засчитано разрывом`);
+  setTimeout(() => setFocused(!document.hidden && document.hasFocus()), 400);
+  return true;
 }
 
 function ask(durMs) {
@@ -166,6 +238,7 @@ function answer(name) {
   if (name && pendingDrift && pendingDrift.type === 'drift') {
     pendingDrift.type = 'permitted';
     journal();
+    store.saveLive(session, elapsed(session));
     toast(`слой переведён в породу круга · ${name}`);
   }
   pendingDrift = null;
@@ -220,6 +293,11 @@ function hud(trueMs) {
     fill: Math.round((trueMs / session.capacityMs) * 50) / 50,
     strata: layers.length
   });
+
+  if (now - savedAt > 4000) {
+    savedAt = now;
+    store.saveLive(session, trueMs);
+  }
 }
 
 function showTip(p) {
@@ -234,6 +312,65 @@ function showTip(p) {
   tip.style.left = p.x + 'px';
   tip.style.top = p.y + 'px';
   tip.classList.add('is-on');
+}
+
+function updateLiveDot() {
+  const dot = $('#live-dot');
+  const n = presence.joined ? peers.length : 0;
+  dot.classList.toggle('is-on', n > 0);
+  dot.title = n ? `в зале ${n}` : '';
+}
+
+function renderFeed(list) {
+  const el = $('#feed');
+  $('#feed-live').textContent = presence.joined ? `· ${peers.length} в зале` : '';
+  if (!list || !list.length) {
+    el.innerHTML = '<li class="feed-empty">Пока тихо.</li>';
+    return;
+  }
+  el.innerHTML = '';
+  list
+    .slice(-40)
+    .reverse()
+    .forEach((ev, i) => {
+      const li = document.createElement('li');
+      li.className = ev.kind;
+      li.style.animationDelay = Math.min(i * 20, 200) + 'ms';
+      let txt = FEED_TXT[ev.kind] || ev.kind;
+      if (ev.kind === 'core' && ev.detail) {
+        try {
+          const d = JSON.parse(ev.detail);
+          txt += ` · ${fmtShort(d.durationMs)} · глубина ${Math.round(d.depth * 100)}%`;
+        } catch {}
+      }
+      const time = new Date(ev.at).toLocaleTimeString('ru-RU', {
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      li.innerHTML = `<span><b>${esc(ev.who)}</b> <i>${txt}</i></span><time>${time}</time>`;
+      el.appendChild(li);
+    });
+}
+
+async function renderShared() {
+  const el = $('#shared');
+  const cores = await presence.shared(cfg.room);
+  $('#shared-count').textContent = cores.length ? `· ${cores.length}` : '';
+  el.innerHTML = '';
+  if (!cores.length) {
+    el.innerHTML = '<p class="side-note">Пока ни одного керна при свидетелях.</p>';
+    return;
+  }
+  cores.forEach((c) => {
+    const fig = document.createElement('figure');
+    const cv = document.createElement('canvas');
+    const cap = document.createElement('figcaption');
+    cap.textContent = c.author;
+    fig.appendChild(cv);
+    fig.appendChild(cap);
+    el.appendChild(fig);
+    archive.paintCore(cv, c, 52, 120, { pad: 3 });
+  });
 }
 
 function updateBadge() {
@@ -267,6 +404,12 @@ function finish(auto) {
     metrics: m
   });
   cfg = store.config();
+  store.dropLive();
+  if (session.witnessed) {
+    presence.publish(lastCore, cfg.name).then((ok) => {
+      if (ok) toast('керн отправлен в общее собрание');
+    });
+  }
   document.title = 'Слои внимания';
   body.dataset.drift = '0';
   $('.state-name').textContent = 'Керн извлечён';
@@ -310,6 +453,8 @@ function renderArchive() {
 
 function renderRoom() {
   renderWall();
+  renderFeed(presence.feed);
+  renderShared();
   renderGuests();
   renderCollective();
 }
@@ -446,6 +591,11 @@ $('#share').addEventListener('click', async () => {
     toast('ссылка в поле обмена — скопируйте вручную');
   }
 });
+function sheet(open) {
+  body.dataset.sheet = open ? '1' : '0';
+  $('#journal-toggle').textContent = open ? 'Закрыть' : 'Журнал';
+}
+$('#journal-toggle').addEventListener('click', () => sheet(body.dataset.sheet !== '1'));
 $('#ask-out').addEventListener('click', () => answer(null));
 $('#ask-skip').addEventListener('click', () => answer(null));
 $('#sound').addEventListener('click', async (e) => {
@@ -517,7 +667,9 @@ document.addEventListener('visibilitychange', () =>
   setFocused(!document.hidden && document.hasFocus())
 );
 window.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && $('#ask').classList.contains('is-on')) answer(null);
+  if (e.key !== 'Escape') return;
+  if ($('#ask').classList.contains('is-on')) answer(null);
+  else if (body.dataset.sheet === '1') sheet(false);
 });
 window.addEventListener('beforeunload', (e) => {
   presence.leave();
@@ -534,6 +686,7 @@ window.addEventListener('pointermove', (e) => {
 renderCircle();
 renderOath();
 $('#sound').setAttribute('aria-pressed', 'false');
+const resumed = resume();
 
 if (location.hash.startsWith('#s=')) {
   const ok = takeGuest(location.hash.slice(3));
@@ -546,9 +699,18 @@ if (location.hash.startsWith('#s=')) {
 
 presence.probe().then((live) => {
   const el = $('#net-state');
-  el.textContent = live ? 'живой зал · сервер отвечает' : 'локальный режим · сервер не запущен';
-  el.classList.toggle('is-live', live);
+  el.textContent = live ? 'зал доступен · вы не вошли' : 'локальный режим · сервер не запущен';
+  el.classList.toggle('is-live', false);
   $('#witness-note').textContent = live
-    ? 'передаются только имя, доля заполнения и состояние'
+    ? 'передаются имя, доля заполнения и состояние; готовый керн ложится в общее собрание'
     : 'сервер не запущен — сеанс будет одиноким';
+  if (live && resumed && session && !session.ended && session.witnessed) {
+    presence.join(cfg.room, ME, {
+      name: cfg.name,
+      fill: Math.min(1, elapsed(session) / session.capacityMs),
+      mode: focused ? 'focus' : 'drift',
+      strata: session.layers.length
+    });
+  }
+  if (live && body.dataset.view === 'room') renderShared();
 });

@@ -1,6 +1,7 @@
 const KEY = 'sloi.archive.v3';
 const CFG = 'sloi.config.v1';
 const GUEST = 'sloi.guests.v1';
+const LIVE = 'sloi.live.v1';
 
 const read = (k, fallback) => {
   try {
@@ -58,6 +59,30 @@ export function remove(id) {
 
 export function clearAll() {
   write(KEY, []);
+}
+
+export function saveLive(session, elapsedMs) {
+  write(LIVE, {
+    capacityMs: session.capacityMs,
+    task: session.task,
+    startedAt: session.startedAt,
+    witnessed: session.witnessed,
+    layers: session.layers,
+    elapsedMs,
+    savedAt: Date.now()
+  });
+}
+
+export function loadLive() {
+  const v = read(LIVE, null);
+  if (!v || !Array.isArray(v.layers) || !v.layers.length) return null;
+  return v;
+}
+
+export function dropLive() {
+  try {
+    localStorage.removeItem(LIVE);
+  } catch {}
 }
 
 export function guests() {
