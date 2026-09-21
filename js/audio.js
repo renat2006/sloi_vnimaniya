@@ -1,8 +1,14 @@
 const ROOT = 55;
-const PARTIALS = [1, 1.5, 2, 3, 4, 6];
-const ENTER = [0, 0.07, 0.22, 0.44, 0.68, 0.9];
-const LEVEL = [0.16, 0.1, 0.075, 0.045, 0.03, 0.02];
-const HAZE_TAU = 22;
+const CYCLE = 16;
+const BREATH = 0.1;
+
+const CHORDS = [
+  { name: 'открытый', upper: [3, 4, 6], colour: [4, 6, 8] },
+  { name: 'минорный', upper: [2.4, 3, 4.8], colour: [4.8, 6, 7.2] },
+  { name: 'подвешенный', upper: [8 / 3, 4, 16 / 3], colour: [16 / 3, 6, 8] },
+  { name: 'светлый', upper: [2.5, 3, 5], colour: [5, 6, 7.5] }
+];
+
 const SCALE = [1, 9 / 8, 4 / 3, 3 / 2, 5 / 3, 2, 9 / 4, 8 / 3];
 
 export class Ambience {
@@ -11,7 +17,10 @@ export class Ambience {
     this.ctx = null;
     this.ready = false;
     this.fill = 0;
+    this.frozen = false;
+    this.step = 0;
     this.playing = null;
+    this.timer = null;
   }
 
   boot() {
@@ -24,46 +33,59 @@ export class Ambience {
     const master = ctx.createGain();
     master.gain.value = 0;
     const soft = ctx.createDynamicsCompressor();
-    soft.threshold.value = -20;
-    soft.ratio.value = 6;
-    soft.attack.value = 0.02;
-    soft.release.value = 0.4;
+    soft.threshold.value = -22;
+    soft.ratio.value = 5;
+    soft.attack.value = 0.03;
+    soft.release.value = 0.5;
     master.connect(soft).connect(ctx.destination);
     this.master = master;
     this.bus = soft;
 
+    const breathGain = ctx.createGain();
+    breathGain.gain.value = 1;
+    breathGain.connect(master);
+    this.breathGain = breathGain;
+
+    const breath = ctx.createOscillator();
+    breath.type = 'sine';
+    breath.frequency.value = BREATH;
+    const depth = ctx.createGain();
+    depth.gain.value = 0.07;
+    breath.connect(depth).connect(breathGain.gain);
+    breath.start();
+
     const air = ctx.createBiquadFilter();
     air.type = 'lowpass';
-    air.frequency.value = 1900;
+    air.frequency.value = 2200;
     air.Q.value = 0.4;
-    air.connect(master);
+    air.connect(breathGain);
     this.air = air;
 
-    this.voices = PARTIALS.map((ratio, i) => {
+    const makeVoice = (ratio, type, level, pan) => {
       const osc = ctx.createOscillator();
-      osc.type = i < 2 ? 'triangle' : 'sine';
+      osc.type = type;
       osc.frequency.value = ROOT * ratio;
       const gain = ctx.createGain();
       gain.gain.value = 0;
-      const pan = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
-      if (pan) {
-        pan.pan.value = ((i % 3) - 1) * 0.35;
-        osc.connect(gain).connect(pan).connect(air);
-      } else {
-        osc.connect(gain).connect(air);
+      let tail = gain;
+      if (ctx.createStereoPanner) {
+        const p = ctx.createStereoPanner();
+        p.pan.value = pan;
+        gain.connect(p);
+        tail = p;
       }
+      tail.connect(air);
+      osc.connect(gain);
       osc.start();
-      return { osc, gain, ratio, i };
-    });
+      return { osc, gain, level };
+    };
 
-    const drift = ctx.createOscillator();
-    drift.type = 'sine';
-    drift.frequency.value = 0.045;
-    const driftAmt = ctx.createGain();
-    driftAmt.gain.value = 1.6;
-    drift.connect(driftAmt);
-    this.voices.forEach((v) => driftAmt.connect(v.osc.detune));
-    drift.start();
+    this.pedal = [makeVoice(1, 'triangle', 0.15, 0), makeVoice(1.5, 'sine', 0.075, -0.2)];
+    this.upper = [
+      makeVoice(3, 'sine', 0.05, -0.4),
+      makeVoice(4, 'sine', 0.04, 0.35),
+      makeVoice(6, 'sine', 0.026, 0.15)
+    ];
 
     const len = ctx.sampleRate * 3;
     const buf = ctx.createBuffer(1, len, ctx.sampleRate);
@@ -88,8 +110,13 @@ export class Ambience {
     this.hiss = hiss;
     this.bp = bp;
 
+    this.nextChordAt = ctx.currentTime + 1.5;
+    this.nextNoteAt = ctx.currentTime + 7;
+    this.timer = setInterval(() => this.tick(), 250);
+
     this.ready = true;
     this.setFill(this.fill);
+    this.applyChord(0, ctx.currentTime + 0.4);
   }
 
   async enable(v) {
@@ -99,7 +126,7 @@ export class Ambience {
       if (this.ctx && this.ctx.state === 'suspended') await this.ctx.resume();
     }
     if (!this.master) return;
-    this.ramp(this.master.gain, v ? 0.55 : 0, 1.4);
+    this.ramp(this.master.gain, v ? 0.5 : 0, 1.6);
   }
 
   ramp(param, v, t = 0.4) {
@@ -116,56 +143,124 @@ export class Ambience {
     param.setTargetAtTime(v, this.ctx.currentTime, tau);
   }
 
+  applyChord(index, when) {
+    if (!this.ready) return;
+    const chord = CHORDS[index % CHORDS.length];
+    this.chord = chord;
+    this.upper.forEach((v, i) => {
+      const ratio = chord.upper[i];
+      v.osc.frequency.setTargetAtTime(ROOT * ratio, when, 2.2);
+    });
+  }
+
+  tick() {
+    if (!this.ready || !this.on) return;
+    const t = this.ctx.currentTime;
+    if (this.frozen) return;
+
+    if (t + 0.4 >= this.nextChordAt) {
+      this.step += 1;
+      this.applyChord(this.step, this.nextChordAt);
+      this.nextChordAt += CYCLE;
+    }
+
+    if (t + 0.4 >= this.nextNoteAt) {
+      if (this.melodyGain > 0.01) this.note(this.nextNoteAt);
+      const density = 0.35 + this.fill * 0.5;
+      this.nextNoteAt += 3.2 + Math.random() * 7 * (1.35 - density);
+    }
+  }
+
+  note(when) {
+    const chord = this.chord || CHORDS[0];
+    const pool = chord.colour;
+    const oct = this.fill > 0.62 ? 2 : 1;
+    const ratio = pool[Math.floor(Math.random() * pool.length)] * oct;
+    const vol = 0.055 * this.melodyGain * (0.7 + Math.random() * 0.5);
+    this.bell(ROOT * ratio, 4.5 + Math.random() * 2.5, vol, when - this.ctx.currentTime, true);
+  }
+
   setFill(f) {
     this.fill = f;
     if (!this.ready) return;
-    this.voices.forEach((v) => {
-      const room = (f - ENTER[v.i]) / 0.12;
-      const target = LEVEL[v.i] * Math.max(0, Math.min(1, room));
-      this.glide(v.gain.gain, target, 2.5);
+    const body = Math.min(1, 0.35 + f * 0.85);
+    this.pedal.forEach((v) => this.glide(v.gain.gain, v.level * body, 3));
+    const steps = [0, 0.18, 0.5];
+    this.upper.forEach((v, i) => {
+      const room = Math.max(0, Math.min(1, (f - steps[i]) / 0.18));
+      this.glide(v.gain.gain, v.level * room * (this.frozen ? 0.6 : 1), 3);
     });
+  }
+
+  get melodyGain() {
+    if (this.frozen) return 0;
+    return this._mel == null ? 1 : this._mel;
   }
 
   mode(kind) {
     if (!this.ready) return;
     const cold = kind === 'drift';
     const stone = kind === 'permitted';
-    const spread = cold ? 46 : stone ? 20 : 0;
-    const tau = cold ? 1.2 : stone ? 5 : HAZE_TAU;
-    this.voices.forEach((v) => {
-      const dir = v.i % 2 ? -1 : 1;
-      this.glide(v.osc.detune, dir * spread * (1 + v.i * 0.12), tau);
+    const wasCold = this._prev === 'drift';
+    this._prev = kind;
+    this.frozen = cold;
+
+    const spread = cold ? 44 : stone ? 18 : 0;
+    const tau = cold ? 1.2 : stone ? 5 : 20;
+    [...this.pedal, ...this.upper].forEach((v, i) => {
+      const dir = i % 2 ? -1 : 1;
+      this.glide(v.osc.detune, dir * spread * (1 + i * 0.1), tau);
     });
-    this.glide(this.air.frequency, cold ? 380 : stone ? 1200 : 1900, cold ? 1 : 6);
+    this.glide(this.air.frequency, cold ? 420 : stone ? 1300 : 2200, cold ? 1 : 7);
     this.glide(this.bp.frequency, cold ? 420 : 2100, 1);
+
+    clearTimeout(this._melTimer);
+    if (cold) {
+      this._mel = 0;
+    } else if (wasCold) {
+      this._mel = 0;
+      const back = stone ? 6000 : 22000;
+      this._melTimer = setTimeout(() => {
+        this._mel = 0.5;
+        this._melTimer = setTimeout(() => (this._mel = 1), back);
+      }, back * 0.55);
+      this.nextChordAt = this.ctx.currentTime + 2;
+      this.nextNoteAt = this.ctx.currentTime + back * 0.0009;
+    } else {
+      this._mel = 1;
+    }
+    this.setFill(this.fill);
   }
 
   forgive() {
     if (!this.ready) return;
-    this.voices.forEach((v) => this.glide(v.osc.detune, 0, 4));
-    this.glide(this.air.frequency, 1900, 3);
+    [...this.pedal, ...this.upper].forEach((v) => this.glide(v.osc.detune, 0, 4));
+    this.glide(this.air.frequency, 2200, 3);
+    clearTimeout(this._melTimer);
+    this._mel = 1;
   }
 
   pour(rate) {
     if (!this.ready) return;
-    this.glide(this.hiss.gain, Math.min(0.42, rate * 0.3), 0.4);
+    this.glide(this.hiss.gain, Math.min(0.34, rate * 0.26), 0.4);
   }
 
-  bell(freq, dur = 3.2, vol = 0.12, when = 0) {
+  bell(freq, dur = 3.2, vol = 0.1, when = 0, soft = false) {
     if (!this.ready || !this.on) return;
     const ctx = this.ctx;
-    const t = ctx.currentTime + when;
+    const t = ctx.currentTime + Math.max(0, when);
     const out = ctx.createGain();
     out.gain.setValueAtTime(0, t);
-    out.gain.linearRampToValueAtTime(vol, t + 0.012);
+    out.gain.linearRampToValueAtTime(vol, t + (soft ? 0.09 : 0.012));
     out.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    out.connect(this.master);
-    [1, 2.76, 5.4].forEach((r, i) => {
+    out.connect(this.air || this.master);
+    const parts = soft ? [1, 2, 3] : [1, 2.76, 5.4];
+    parts.forEach((r, i) => {
       const o = ctx.createOscillator();
       o.type = 'sine';
       o.frequency.value = freq * r;
       const g = ctx.createGain();
-      g.gain.value = i === 0 ? 1 : 0.28 / i;
+      g.gain.value = i === 0 ? 1 : (soft ? 0.16 : 0.28) / i;
       o.connect(g).connect(out);
       o.start(t);
       o.stop(t + dur + 0.1);
@@ -184,7 +279,7 @@ export class Ambience {
     o.type = 'sine';
     o.frequency.setValueAtTime(ROOT * 3, ctx.currentTime);
     o.frequency.exponentialRampToValueAtTime(ROOT * 0.92, ctx.currentTime + 1.3);
-    g.gain.setValueAtTime(0.1, ctx.currentTime);
+    g.gain.setValueAtTime(0.09, ctx.currentTime);
     g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 1.5);
     o.connect(g).connect(this.master);
     o.start();
@@ -194,27 +289,31 @@ export class Ambience {
   resolve() {
     if (!this.ready) return;
     const ctx = this.ctx;
-    this.voices.forEach((v) => this.glide(v.osc.detune, 0, 0.8));
-    this.glide(this.air.frequency, 3200, 1.5);
+    this.frozen = true;
+    clearTimeout(this._melTimer);
+    [...this.pedal, ...this.upper].forEach((v) => this.glide(v.osc.detune, 0, 0.8));
+    this.glide(this.air.frequency, 3400, 1.5);
     this.glide(this.hiss.gain, 0, 1.2);
+    this.applyChord(0, ctx.currentTime + 0.1);
 
     const third = ctx.createOscillator();
     third.type = 'sine';
     third.frequency.value = ROOT * 5;
     const tg = ctx.createGain();
     tg.gain.setValueAtTime(0, ctx.currentTime);
-    tg.gain.linearRampToValueAtTime(0.03, ctx.currentTime + 1.4);
-    tg.gain.setTargetAtTime(0, ctx.currentTime + 3.5, 1.6);
+    tg.gain.linearRampToValueAtTime(0.028, ctx.currentTime + 1.6);
+    tg.gain.setTargetAtTime(0, ctx.currentTime + 4, 1.8);
     third.connect(tg).connect(this.air);
     third.start();
-    third.stop(ctx.currentTime + 9);
+    third.stop(ctx.currentTime + 10);
 
-    this.bell(ROOT * 4, 5.5, 0.11);
-    this.bell(ROOT * 6, 4.5, 0.05, 0.28);
-    this.voices.forEach((v) => {
-      if (v.i > 0) this.glide(v.gain.gain, LEVEL[v.i] * 1.25, 1.2);
-    });
-    setTimeout(() => this.setFill(this.fill), 4000);
+    this.bell(ROOT * 4, 6, 0.1);
+    this.bell(ROOT * 6, 5, 0.045, 0.3);
+    setTimeout(() => {
+      this.frozen = false;
+      this._mel = 1;
+      this.setFill(this.fill);
+    }, 6000);
   }
 
   stopCore() {
@@ -238,8 +337,7 @@ export class Ambience {
     const t0 = ctx.currentTime + 0.12;
 
     const out = ctx.createGain();
-    out.gain.value = 0.0001;
-    out.gain.setTargetAtTime(this.on ? 0.85 : 0.85, t0, 0.2);
+    out.gain.value = 0.85;
     const lp = ctx.createBiquadFilter();
     lp.type = 'lowpass';
     lp.frequency.value = 4200;
@@ -283,7 +381,7 @@ export class Ambience {
       if (idx > 0) this.bell(base * 2, Math.min(2.2, dur + 0.6), 0.05, at - ctx.currentTime);
     });
 
-    this.bell(ROOT * 4, 4.5, 0.09, span + 0.15);
+    this.bell(ROOT * 4, 4.5, 0.085, span + 0.15);
 
     const stop = () => {
       nodes.forEach((n) => {
