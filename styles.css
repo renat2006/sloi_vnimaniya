@@ -89,13 +89,14 @@ main { position: relative; height: 100dvh; }
 
 .view {
   position: absolute; inset: 0; padding: 96px 42px 42px;
-  opacity: 0; pointer-events: none; transform: translateY(14px); filter: blur(7px);
-  transition: opacity 0.85s var(--ease), transform 0.85s var(--ease), filter 0.85s var(--ease);
+  opacity: 0; pointer-events: none; visibility: hidden; transform: translateY(14px); filter: blur(7px);
+  transition: opacity 0.85s var(--ease), transform 0.85s var(--ease), filter 0.85s var(--ease), visibility 0s linear 0.85s;
 }
 body[data-view="intro"] #view-intro,
 body[data-view="stage"] #view-stage,
 body[data-view="archive"] #view-archive {
-  opacity: 1; pointer-events: auto; transform: none; filter: none;
+  opacity: 1; pointer-events: auto; visibility: visible; transform: none; filter: none;
+  transition-delay: 0s;
 }
 
 .intro-grid {
@@ -132,7 +133,7 @@ h1 {
 
 .starter { margin-top: 40px; display: flex; align-items: center; gap: 30px; flex-wrap: wrap; }
 .picks { display: flex; align-items: center; gap: 8px; }
-.pick { width: 44px; height: 44px; border: 1px solid var(--line); font-size: 13px; color: var(--dim); transition: all 0.5s var(--ease); }
+.pick { width: 44px; height: 44px; border: 1px solid var(--line); font-size: 13px; color: var(--dim); transition: color 0.5s var(--ease), background-color 0.5s var(--ease), border-color 0.5s var(--ease), opacity 0.5s var(--ease); }
 .pick:hover { border-color: var(--dim2); color: var(--bone); }
 .pick.is-on { background: var(--bone); color: var(--ink); border-color: var(--bone); }
 .picks-unit { font-size: 9.5px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--dim2); margin-left: 6px; line-height: 1.5; }
@@ -194,7 +195,7 @@ body[data-drift="1"] .state-name { color: var(--cold); }
 .stage-actions { padding-top: 18px; }
 .ghost {
   border: 1px solid var(--line); padding: 11px 15px; font-size: 10.5px; letter-spacing: 0.22em;
-  text-transform: uppercase; color: var(--dim); transition: all 0.5s var(--ease);
+  text-transform: uppercase; color: var(--dim); transition: color 0.5s var(--ease), background-color 0.5s var(--ease), border-color 0.5s var(--ease), opacity 0.5s var(--ease);
 }
 .ghost:hover { color: var(--ink); background: var(--bone); border-color: var(--bone); }
 
@@ -203,7 +204,7 @@ body[data-drift="1"] .state-name { color: var(--cold); }
   opacity: 0; pointer-events: none; transform: translateY(10px); transition: opacity 0.9s var(--ease) 0.7s, transform 0.9s var(--ease) 0.7s;
   overflow-y: auto;
 }
-body[data-phase="result"] .wall-label { opacity: 1; pointer-events: auto; transform: none; }
+body[data-view="stage"][data-phase="result"] .wall-label { opacity: 1; pointer-events: auto; transform: none; }
 body[data-phase="result"] .state .dot { animation: none; opacity: 0.4; }
 body[data-phase="result"] .journal, body[data-phase="result"] .journal-head, body[data-phase="result"] .stage-actions { opacity: 0; transition: opacity 0.5s; }
 body[data-phase="result"] .rail--left .readouts, body[data-phase="result"] .rail-note { opacity: 0.25; transition: opacity 0.9s; }
@@ -222,7 +223,7 @@ body[data-phase="result"] .rail--left .readouts, body[data-phase="result"] .rail
 .arc-head h2 { font-family: var(--serif); font-weight: 300; font-size: clamp(38px, 5vw, 70px); line-height: 1; margin-top: 10px; }
 .arc-tools { display: flex; gap: 10px; align-items: center; }
 .tabs { display: flex; border: 1px solid var(--line); }
-.tab { padding: 11px 17px; font-size: 10.5px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--dim); transition: all 0.4s var(--ease); }
+.tab { padding: 11px 17px; font-size: 10.5px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--dim); transition: color 0.4s var(--ease), background-color 0.4s var(--ease), border-color 0.4s var(--ease), opacity 0.4s var(--ease); }
 .tab.is-on { background: var(--bone); color: var(--ink); }
 .arc-body { flex: 1; overflow-y: auto; margin-top: 1px; scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
 
@@ -257,14 +258,14 @@ body[data-phase="result"] .rail--left .readouts, body[data-phase="result"] .rail
   position: fixed; left: 50%; bottom: 46px; transform: translate(-50%, 16px); z-index: 70;
   border: 1px solid var(--line); background: rgba(8, 9, 11, 0.92); backdrop-filter: blur(8px);
   padding: 12px 20px; font-size: 10.5px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--dim);
-  opacity: 0; pointer-events: none; transition: all 0.6s var(--ease);
+  opacity: 0; pointer-events: none; transition: opacity 0.6s var(--ease), transform 0.6s var(--ease);
 }
 .toast.is-on { opacity: 1; transform: translate(-50%, 0); }
 
 
 body[data-view="ritual"] #view-ritual,
 body[data-view="method"] #view-method,
-body[data-view="room"] #view-room { opacity: 1; pointer-events: auto; transform: none; filter: none; }
+body[data-view="room"] #view-room { opacity: 1; pointer-events: auto; visibility: visible; transform: none; filter: none; transition-delay: 0s; }
 
 .method { margin: 30px 0 26px; border-top: 1px solid var(--line); padding-top: 22px; }
 .refs { list-style: none; counter-reset: r; margin: 16px 0 18px; display: grid; gap: 12px; }
@@ -294,7 +295,7 @@ body[data-view="room"] #view-room { opacity: 1; pointer-events: auto; transform:
 .chip {
   display: inline-flex; align-items: center; gap: 9px; border: 1px solid var(--line);
   padding: 9px 13px; font-size: 11px; letter-spacing: 0.12em; color: var(--dim);
-  transition: all 0.45s var(--ease);
+  transition: color 0.45s var(--ease), background-color 0.45s var(--ease), border-color 0.45s var(--ease), opacity 0.45s var(--ease);
 }
 .chip.is-on { border-color: rgba(169,168,138,0.6); color: var(--bone); background: rgba(169,168,138,0.09); }
 .chip b { font-weight: 400; cursor: pointer; }
@@ -313,7 +314,7 @@ body[data-view="room"] #view-room { opacity: 1; pointer-events: auto; transform:
 
 .switch { display: flex; align-items: flex-start; gap: 13px; cursor: pointer; }
 .switch input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-.sw-box { width: 15px; height: 15px; border: 1px solid var(--dim2); flex: none; margin-top: 2px; position: relative; transition: all 0.4s var(--ease); }
+.sw-box { width: 15px; height: 15px; border: 1px solid var(--dim2); flex: none; margin-top: 2px; position: relative; transition: color 0.4s var(--ease), background-color 0.4s var(--ease), border-color 0.4s var(--ease), opacity 0.4s var(--ease); }
 .sw-box::after { content: ""; position: absolute; inset: 3px; background: var(--bone); opacity: 0; transition: opacity 0.4s var(--ease); }
 .switch input:checked + .sw-box { border-color: var(--bone); }
 .switch input:checked + .sw-box::after { opacity: 1; }
@@ -482,8 +483,8 @@ body[data-view="room"] #view-room { opacity: 1; pointer-events: auto; transform:
 
   body[data-phase="result"] .view--stage { grid-template-rows: minmax(250px, 46vh) auto; overflow-y: auto; }
   body[data-phase="result"] .rail--left { display: none; }
-  .wall-label { position: static; opacity: 1; transform: none; pointer-events: auto; display: none; }
-  body[data-phase="result"] .wall-label { display: flex; }
+  .wall-label { position: static; opacity: 1; transform: none; pointer-events: none; display: none; }
+  body[data-view="stage"][data-phase="result"] .wall-label { display: flex; pointer-events: auto; }
   body[data-phase="result"] .stage-actions { display: none; }
   .lab-actions { gap: 8px; padding-top: 18px; }
   .wall-label h2 { font-size: 34px; }

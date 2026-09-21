@@ -264,6 +264,7 @@ function journal() {
 }
 
 function hud(trueMs) {
+  if (!session || session.ended) return;
   const now = performance.now();
   if (now - hudAt < 150) return;
   hudAt = now;

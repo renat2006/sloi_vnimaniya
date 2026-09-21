@@ -62,6 +62,7 @@ export function clearAll() {
 }
 
 export function saveLive(session, elapsedMs) {
+  if (!session || session.ended) return;
   write(LIVE, {
     capacityMs: session.capacityMs,
     task: session.task,
