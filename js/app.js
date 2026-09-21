@@ -298,6 +298,7 @@ function ask(durMs) {
 function answer(name) {
   if (name && pendingDrift && pendingDrift.type === 'drift') {
     pendingDrift.type = 'permitted';
+    amb.forgive();
     journal();
     store.saveLive(session, elapsed(session));
     toast(`слой стал каменным · ${name}`);
@@ -338,6 +339,7 @@ function hud(trueMs) {
   $('#ro-breaks').textContent = m.breaks;
   $('#ro-frag').textContent = m.fragmentation.toFixed(2);
   amb.pour(Math.min(1.4, stage.rate * 1.1 + 0.08));
+  amb.setFill(Math.min(1, trueMs / session.capacityMs));
 
   const best = cfg.bestMs || 0;
   if (!session.ended && best > 0) {
@@ -479,7 +481,7 @@ function finish(auto) {
   stage.setDrift(false);
   stage.targetMs = null;
   amb.mode('focus');
-  amb.ping(528, 4, 0.1);
+  amb.resolve();
   buzz([30, 90, 30]);
   clearTimeout(hintTimer);
   holdScreen(false);
@@ -667,6 +669,35 @@ $('#sound-vow').addEventListener('change', async (e) => {
 });
 $('#again').addEventListener('click', () => go('ritual'));
 $('#to-archive').addEventListener('click', () => go('archive'));
+let listening = null;
+
+function listenTo(core, btn, label) {
+  const prev = listening;
+  if (prev) {
+    listening = null;
+    amb.stopCore();
+    prev.btn.textContent = prev.label;
+    if (prev.btn === btn) return;
+  }
+  if (!core) return;
+  btn.textContent = 'Остановить';
+  listening = { btn, label };
+  amb.playCore(core, () => {
+    btn.textContent = label;
+    listening = null;
+  });
+}
+
+$('#listen').addEventListener('click', () => listenTo(lastCore, $('#listen'), 'Послушать керн'));
+
+$('#arc-body').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-listen]');
+  if (!b) return;
+  const id = b.dataset.listen;
+  const core = [...store.list(), ...store.guests()].find((c) => c.id === id);
+  listenTo(core, b, 'Послушать');
+});
+
 $('#png').addEventListener('click', () => lastCore && archive.exportPNG(lastCore, lastIndex));
 $('#share').addEventListener('click', async () => {
   const link = shareLink(lastCore);

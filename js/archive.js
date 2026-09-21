@@ -148,7 +148,10 @@ function mountCores(root, all) {
           <span>Переходов <b>${m.transitions || 0}</b></span>
           <span>Дробление <b>${m.fragmentation.toFixed(2)}</b></span>
         </div>
-        <button class="card-kill">${c.guest ? 'Вернуть' : 'Удалить'}</button>
+        <div class="card-acts">
+          <button class="card-listen" data-listen="${c.id}">Послушать</button>
+          <button class="card-kill">${c.guest ? 'Вернуть' : 'Удалить'}</button>
+        </div>
       </div>`;
     grid.appendChild(el);
     paintCore(el.querySelector('canvas'), c, 92, 210);

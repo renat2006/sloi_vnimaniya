@@ -243,9 +243,10 @@ body[data-phase="result"] .rail--left .readouts, body[data-phase="result"] .rail
 .card-rows { margin-top: 14px; display: grid; gap: 7px; font-size: 11px; letter-spacing: 0.08em; color: var(--dim); }
 .card-rows span { display: flex; justify-content: space-between; gap: 10px; }
 .card-rows b { font-weight: 400; color: rgba(232, 226, 214, 0.85); font-variant-numeric: tabular-nums; }
-.card-kill { margin-top: auto; align-self: flex-start; padding-top: 14px; font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--dim2); opacity: 0; transition: opacity 0.4s; }
-.card:hover .card-kill { opacity: 1; }
-.card-kill:hover { color: var(--bone); }
+.card-acts { margin-top: auto; padding-top: 14px; display: flex; gap: 16px; }
+.card-listen, .card-kill { font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--dim2); }
+.card-listen { color: var(--dim); }
+.card-listen:hover, .card-kill:hover { color: var(--bone); }
 
 .week { display: grid; grid-template-columns: repeat(7, 1fr); border-left: 1px solid var(--line); }
 .day { border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 22px 14px; display: flex; flex-direction: column; align-items: center; gap: 14px; min-height: 340px; }
