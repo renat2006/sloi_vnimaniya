@@ -378,23 +378,42 @@ body[data-view="room"] #view-room { opacity: 1; pointer-events: auto; transform:
   .ro dd { font-size: 24px; }
 }
 @media (max-width: 980px) {
-  .view { padding: 88px 22px 26px; overflow-y: auto; }
-  .intro-grid { grid-template-columns: 1fr; gap: 44px; align-items: start; padding-bottom: 40px; }
-  .view--stage { display: flex; flex-direction: column; }
-  .vessel-wrap { height: 56vh; order: -1; }
-  .rail { min-height: 260px; }
-  .readouts { grid-template-columns: 1fr 1fr; display: grid; }
+  .view { padding: 84px 20px 28px; overflow-y: auto; }
+  .intro-grid { grid-template-columns: 1fr; gap: 40px; align-items: start; padding-bottom: 40px; }
+  .tombstone { margin-top: 34px; }
+
+  .view--stage { display: flex; flex-direction: column; gap: 20px; }
+  .vessel-wrap { flex: none; height: 50vh; min-height: 300px; order: -1; }
+  .rail { flex: none; min-height: 0; display: block; }
+  .readouts { display: grid; grid-template-columns: 1fr 1fr; column-gap: 20px; }
   .ro { padding: 12px 0; }
+  .ro--big { grid-column: 1 / -1; }
+  .rail-note { padding-top: 16px; }
+  .journal { flex: none; max-height: 32vh; overflow-y: auto; }
+  .stage-actions { padding-bottom: 8px; }
+  .stage-actions .ghost { width: 100%; text-align: center; }
+
   .wall-label { position: static; opacity: 1; transform: none; pointer-events: auto; display: none; }
   body[data-phase="result"] .wall-label { display: flex; }
-  body[data-phase="result"] .journal, body[data-phase="result"] .journal-head { display: none; }
-  .topbar { padding: 20px 22px; }
-  .nav { gap: 16px; }
+  body[data-phase="result"] .journal,
+  body[data-phase="result"] .journal-head,
+  body[data-phase="result"] .stage-actions { display: none; }
+  body[data-phase="result"] .rail--left .readouts,
+  body[data-phase="result"] .rail-note { opacity: 1; }
+  .lab-actions .ghost { flex: 1; text-align: center; }
+
+  .room-body { grid-template-columns: 1fr; gap: 28px; overflow: visible; }
+  .room-main, .room-side { overflow: visible; }
+  .wall { max-height: none; }
+  .arc-body { overflow: visible; }
+  .view--room, .view--archive { overflow-y: auto; }
   .week { grid-template-columns: repeat(4, 1fr); }
-  .room-body { grid-template-columns: 1fr; overflow-y: auto; }
-  .wall { max-height: 320px; }
-  .ro--big dd { font-size: 32px; }
+  .day { min-height: 260px; }
+
+  .topbar { padding: 20px 20px; }
+  .nav { gap: 16px; }
 }
+
 @media (max-width: 680px) {
   .topbar { padding: 18px 16px; }
   .brand .txt { display: none; }

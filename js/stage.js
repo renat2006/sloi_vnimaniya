@@ -49,8 +49,8 @@ export class Stage {
   resize() {
     const box = this.cv.parentElement;
     this.dpr = Math.min(2, window.devicePixelRatio || 1);
-    this.W = Math.max(240, box.clientWidth);
-    this.H = Math.max(320, box.clientHeight);
+    this.W = Math.max(200, box.clientWidth);
+    this.H = Math.max(200, box.clientHeight);
     this.cv.width = Math.round(this.W * this.dpr);
     this.cv.height = Math.round(this.H * this.dpr);
     this.cv.style.width = this.W + 'px';
@@ -97,7 +97,7 @@ export class Stage {
 
   geom() {
     const m = this.morph;
-    const flaskR = Math.min(this.W * 0.33, this.H * 0.168);
+    const flaskR = Math.min(this.W * 0.36, this.H * 0.185);
     const coreR = Math.min(this.W * 0.44, 190);
     return buildGeom({
       cx: this.W / 2,
