@@ -51,10 +51,10 @@ export class Stage {
     this.dpr = Math.min(2, window.devicePixelRatio || 1);
     this.W = Math.max(200, box.clientWidth);
     this.H = Math.max(200, box.clientHeight);
-    this.cv.width = Math.round(this.W * this.dpr);
-    this.cv.height = Math.round(this.H * this.dpr);
-    this.cv.style.width = this.W + 'px';
-    this.cv.style.height = this.H + 'px';
+    const w = Math.round(this.W * this.dpr);
+    const h = Math.round(this.H * this.dpr);
+    if (this.cv.width !== w) this.cv.width = w;
+    if (this.cv.height !== h) this.cv.height = h;
     this.airs.length = 0;
   }
 

@@ -14,7 +14,7 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
-html, body { height: 100%; }
+html, body { height: 100%; overflow: hidden; }
 
 body {
   background: var(--ink);
@@ -37,14 +37,14 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 }
 
 .grain {
-  position: fixed; inset: -60px; z-index: 55; pointer-events: none; opacity: 0.05;
+  position: fixed; inset: 0; z-index: 55; pointer-events: none; opacity: 0.05;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   animation: grain 900ms steps(2, end) infinite;
 }
 @keyframes grain {
-  0% { transform: translate(0, 0); }
-  50% { transform: translate(-22px, 14px); }
-  100% { transform: translate(12px, -18px); }
+  0% { background-position: 0 0; }
+  50% { background-position: -22px 14px; }
+  100% { background-position: 12px -18px; }
 }
 
 .beam {
@@ -155,11 +155,11 @@ body[data-drift="1"] .state-name { color: var(--cold); }
 .readouts { display: grid; gap: 0; margin-top: 4px; }
 .ro { padding: 15px 0; border-bottom: 1px solid var(--line); }
 .ro dt { font-size: 10px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--dim2); }
-.ro dd { font-family: var(--serif); font-size: 30px; line-height: 1.05; margin-top: 5px; font-weight: 300; font-variant-numeric: tabular-nums; }
+.ro dd { font-family: var(--serif); font-size: 30px; line-height: 1.05; margin-top: 5px; font-weight: 300; font-variant-numeric: lining-nums tabular-nums; font-feature-settings: "lnum" 1, "tnum" 1; }
 .rail-note { margin-top: auto; padding-top: 24px; font-size: 12.5px; line-height: 1.8; color: var(--dim2); font-style: italic; font-family: var(--serif); }
 
-.vessel-wrap { position: relative; min-height: 0; overflow: hidden; }
-#vessel { display: block; }
+.vessel-wrap { position: relative; min-height: 0; min-width: 0; overflow: hidden; }
+#vessel { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 
 .tip {
   position: absolute; left: 0; top: 0; transform: translate(-50%, -190%);
@@ -407,7 +407,8 @@ body[data-view="room"] #view-room { opacity: 1; pointer-events: auto; transform:
   .tombstone { margin-top: 34px; }
 
   .view--stage {
-    display: grid; grid-template-rows: minmax(140px, 1fr) auto auto;
+    display: grid; grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(140px, 1fr) auto auto;
     gap: 14px; overflow: hidden; padding-bottom: 18px;
   }
   .vessel-wrap { grid-row: 1; height: auto; min-height: 0; flex: none; }
