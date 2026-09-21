@@ -1,4 +1,5 @@
 :root {
+  --navh: 0px;
   --ink: #08090B;
   --ink2: #0C0E11;
   --bone: #E8E2D6;
@@ -421,6 +422,7 @@ body[data-view="room"] #view-room { opacity: 1; pointer-events: auto; visibility
 
   .topbar { padding: 6px 20px; }
   .topbar::before { inset: 0 0 -20px; }
+  :root { --navh: calc(47px + env(safe-area-inset-bottom)); }
   .nav {
     position: fixed; left: 0; right: 0; bottom: 0; top: auto; z-index: 50;
     display: grid; grid-template-columns: repeat(4, 1fr); gap: 0;
@@ -469,16 +471,17 @@ body[data-view="room"] #view-room { opacity: 1; pointer-events: auto; visibility
 
   .intro-grid { display: flex; flex-direction: column; align-items: stretch; height: auto; overflow: visible; gap: 0; padding-bottom: 0; max-width: none; }
   .intro-left, .intro-right { display: contents; }
-  .overline { order: 1; letter-spacing: 0.2em; font-size: 10px; }
-  h1 { order: 2; margin: 20px 0 14px; }
-  .latin { order: 3; }
-  .statement { order: 4; margin-top: 30px; }
-  .legend { order: 5; }
-  .starter { order: 6; width: 100%; flex-direction: column; align-items: stretch; gap: 16px; }
+  .overline { letter-spacing: 0.2em; }
+  .intro-left > .overline { order: 1; font-size: 10px; }
+  .intro-left h1 { order: 2; margin: 20px 0 14px; }
+  .intro-left .latin { order: 3; }
+  .intro-right .statement { order: 4; margin-top: 30px; }
+  .intro-right .legend { order: 5; }
+  .intro-right .starter { order: 6; width: 100%; flex-direction: column; align-items: stretch; gap: 16px; }
   .starter .cta { width: 100%; }
   .starter .lnk { align-self: flex-start; }
   .install { order: 7; }
-  .tombstone { order: 7; margin-top: 36px; max-width: none; }
+  .intro-left .tombstone { order: 7; margin-top: 36px; max-width: none; }
 
   .ritual { max-height: none; overflow: visible; width: 100%; }
   .vow { gap: 14px; }
@@ -532,8 +535,13 @@ body[data-view="room"] #view-room { opacity: 1; pointer-events: auto; visibility
   body[data-sheet="1"] .journal-head { display: flex; }
   body[data-sheet="1"] .journal { display: block; max-height: 48vh; flex: none; }
 
-  body[data-phase="result"] .view--stage { grid-template-rows: minmax(250px, 46vh) auto; overflow-y: auto; }
+  body[data-phase="result"] .view--stage {
+    display: block; overflow-y: auto; overscroll-behavior: contain;
+  }
   body[data-phase="result"] .rail--left { display: none; }
+  body[data-phase="result"] .vessel-wrap { height: 44vh; min-height: 240px; margin-bottom: 18px; }
+  body[data-phase="result"] .rail--right { display: block; }
+  body[data-phase="result"] .wall-label { overflow: visible; height: auto; max-height: none; }
   .wall-label { position: static; opacity: 1; transform: none; pointer-events: none; display: none; }
   body[data-view="stage"][data-phase="result"] .wall-label { display: flex; pointer-events: auto; }
   body[data-phase="result"] .stage-actions { display: none; }
