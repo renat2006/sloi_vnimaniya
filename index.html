@@ -44,9 +44,9 @@
       <div class="intro-right">
         <div class="statement">
           <p><em>Внимание нельзя увидеть. Но у него остаётся осадок.</em></p>
-          <p>Пока вы удерживаете эту страницу в фокусе, колба наполняется песком — медленно, слой за слоем. Стоит уйти в другую вкладку, окно или приложение, поток меняет состав: откладывается холодная прослойка разрыва. Она растёт ровно столько, сколько вас нет.</p>
-          <p>Вернувшись, вы скажете, где были. Если внутри круга, который вы сами очертили перед началом, — порода будет каменной, рабочей. Если вне — синей. Прибор здесь вы: показания даёт человек, а не слежка.</p>
-          <p>Когда колба заполнена, стекло исчезает, искажение формы снимается и время становится линейным. У вас на руках керн — срез сеанса, который читается так же, как геолог читает породу, а климатолог — ледниковый щит.</p>
+          <p>Пока вы удерживаете эту страницу в фокусе, колба наполняется песком. Уходите в другую вкладку или приложение — поток холодеет, и в колбе растёт синяя прослойка разрыва, ровно на длину вашего отсутствия.</p>
+          <p>Вернувшись, вы сами скажете, где были. Внутри круга, очерченного перед началом, — порода будет каменной, рабочей. Вне круга — синей. Прибор здесь вы.</p>
+          <p>Когда колба заполнена, стекло исчезает и время становится линейным. У вас на руках керн — срез сеанса, который читается так же, как геолог читает породу, а климатолог — ледниковый щит.</p>
         </div>
 
         <ul class="legend">
@@ -56,8 +56,20 @@
           <li><span class="sw sw--haze"></span><b>Дымка</b><i>остаточное внимание после возвращения</i></li>
         </ul>
 
-        <div class="method">
-          <p class="overline">Метод</p>
+        <div class="starter">
+          <button class="cta" id="to-ritual"><span>Принести обет</span><em></em></button>
+          <button class="lnk" data-go="method">Метод и исследования →</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <section class="view view--method" id="view-method">
+    <div class="ritual">
+      <p class="overline">Приложение к экспликации</p>
+      <h2 class="ritual-h">Метод</h2>
+      <div class="method-body">
           <ol class="refs">
             <li><b>Обет.</b> Перед сеансом вы называете задачу и очерчиваете круг. Формула «если… — то…» повышает шанс довести начатое <i>(Gollwitzer, 1999)</i>, а добровольное ограничение работает лучше навязанного <i>(Ariely &amp; Wertenbroch, 2002)</i>.</li>
             <li><b>Дымка.</b> После переключения часть внимания остаётся на прошлом <i>(Leroy, 2009)</i>; даже уместный переход стоит времени <i>(Monsell, 2003)</i>. Поэтому первые минуты нового слоя мутные, а каменный переход мутит их вдвое слабее.</li>
@@ -66,19 +78,15 @@
             <li><b>Зал.</b> Присутствие других меняет исполнение <i>(Triplett, 1898; Zajonc, 1965)</i>. Рейтинга здесь нет намеренно: публичное сравнение подтягивает отстающих и расслабляет опережающих <i>(Schultz et al., 2007)</i>.</li>
           </ol>
           <p class="fineprint">Индекс дробления = 1 − Σ(fᵢ/F)², где fᵢ — длительности непрерывных рабочих отрезков. В исследованиях экранного внимания средняя длина непрерывного эпизода измеряется десятками секунд <i>(Mark, 2023)</i>. Ни один байт не уходит с вашей машины, пока вы сами не войдёте в зал.</p>
-        </div>
-
-        <div class="starter">
-          <button class="cta" id="to-ritual"><span>Принести обет</span><em></em></button>
-        </div>
       </div>
+      <p class="ritual-go"><button class="lnk" data-go="intro">← назад к экспликации</button></p>
     </div>
   </section>
 
   <section class="view view--ritual" id="view-ritual">
     <div class="ritual">
       <p class="overline">Зал 1 · обет</p>
-      <h2 class="ritual-h">Перед тем<br>как начать</h2>
+      <h2 class="ritual-h">Перед тем как начать</h2>
 
       <div class="vow">
         <label class="field">
@@ -93,21 +101,10 @@
             <input id="chip-new" maxlength="24" placeholder="добавить: Figma, словарь, бумага" autocomplete="off">
             <button class="ghost" id="chip-go">+</button>
           </div>
-          <p class="side-note rule">Отлучка короче 0,35 секунды не замечается — это шум переключения раскладки. Короче 8 секунд ложится разрывом молча. О более длинных приложение спросит, когда вы вернётесь.</p>
+          <p class="side-note rule">Отлучка короче 8 секунд ложится разрывом молча — о более длинных приложение спросит, когда вы вернётесь.</p>
         </div>
 
         <p class="oath" id="oath"></p>
-
-        <div class="field">
-          <span class="lbl">Колба</span>
-          <div class="picks" role="radiogroup" aria-label="Длительность сеанса">
-            <button class="pick" data-min="2">2</button>
-            <button class="pick" data-min="15">15</button>
-            <button class="pick is-on" data-min="25">25</button>
-            <button class="pick" data-min="50">50</button>
-            <span class="picks-unit">минут</span>
-          </div>
-        </div>
 
         <label class="switch">
           <input type="checkbox" id="witness">
@@ -116,6 +113,13 @@
         </label>
 
         <div class="ritual-go">
+          <div class="picks" role="radiogroup" aria-label="Длительность сеанса">
+            <button class="pick" data-min="2">2</button>
+            <button class="pick" data-min="15">15</button>
+            <button class="pick is-on" data-min="25">25</button>
+            <button class="pick" data-min="50">50</button>
+            <span class="picks-unit">минут<br>в колбе</span>
+          </div>
           <button class="cta" id="begin"><span>Начать сеанс</span><em></em></button>
           <button class="lnk" data-go="intro">назад</button>
         </div>

@@ -572,7 +572,7 @@ export class Stage {
     const step = mins > 30 ? 2 : 1;
     const major = mins > 30 ? 10 : 5;
     ctx.save();
-    ctx.font = '500 8.5px "IBM Plex Mono", ui-monospace, monospace';
+    ctx.font = '500 9.5px "IBM Plex Mono", ui-monospace, monospace';
     ctx.textBaseline = 'middle';
     for (let m = 0; m <= mins; m += step) {
       const t = tAtVol(g, (m * 60000) / cap);
@@ -582,12 +582,12 @@ export class Stage {
       ctx.beginPath();
       ctx.moveTo(x + 7, y);
       ctx.lineTo(x + 7 + (isMajor ? 13 : 6), y);
-      ctx.strokeStyle = rgba(PAL.bone, isMajor ? 0.3 : 0.14);
+      ctx.strokeStyle = rgba(PAL.bone, isMajor ? 0.42 : 0.2);
       ctx.lineWidth = 1;
       ctx.stroke();
       if (isMajor && m > 0) {
-        ctx.fillStyle = rgba(PAL.bone, 0.38);
-        ctx.fillText(String(m), x + 25, y);
+        ctx.fillStyle = rgba(PAL.bone, 0.55);
+        ctx.fillText(String(m), x + 26, y);
       }
     }
     ctx.restore();
@@ -608,11 +608,11 @@ export class Stage {
     ctx.lineWidth = 1;
     ctx.stroke();
     ctx.setLineDash([]);
-    ctx.font = '500 8px "IBM Plex Mono", ui-monospace, monospace';
+    ctx.font = '500 9px "IBM Plex Mono", ui-monospace, monospace';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'bottom';
-    ctx.fillStyle = rgba(PAL.focusLite, 0.45);
-    ctx.fillText('РЕКОРД', g.cx - w, y - 4);
+    ctx.fillStyle = rgba(PAL.focusLite, 0.62);
+    ctx.fillText('РЕКОРД', g.cx - w, y - 5);
     ctx.restore();
   }
 
@@ -626,12 +626,12 @@ export class Stage {
     ctx.lineTo(x - 15, y - 3.5);
     ctx.lineTo(x - 15, y + 3.5);
     ctx.closePath();
-    ctx.fillStyle = this.drift ? rgba(PAL.driftEdge, 0.85) : rgba(PAL.bone, 0.6);
+    ctx.fillStyle = this.drift ? rgba(PAL.driftEdge, 0.9) : rgba(PAL.bone, 0.7);
     ctx.fill();
-    ctx.font = '400 9px "IBM Plex Mono", ui-monospace, monospace';
+    ctx.font = '400 10px "IBM Plex Mono", ui-monospace, monospace';
     ctx.textAlign = 'right';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = this.drift ? rgba(PAL.driftEdge, 0.8) : rgba(PAL.bone, 0.45);
+    ctx.fillStyle = this.drift ? rgba(PAL.driftEdge, 0.85) : rgba(PAL.bone, 0.62);
     ctx.fillText(fmt(this.shown), x - 21, y);
     ctx.restore();
   }
