@@ -2,7 +2,7 @@ import { Stage } from './stage.js';
 import { Ambience } from './audio.js';
 import { Presence } from './net.js';
 import {
-  createSession, elapsed, switchState, reclassify, sealed, metricsOf,
+  createSession, elapsed, switchState, lastClosedDrift, sealed, metricsOf,
   currentRunMs, fmt, fmtShort, ASK_AFTER_MS
 } from './session.js';
 import * as store from './store.js';
@@ -23,6 +23,7 @@ let arcMode = 'cores';
 let hudAt = 0;
 let peers = [];
 let wantWitness = false;
+let pendingDrift = null;
 
 const esc = (s) => String(s).replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' })[c]);
 
@@ -132,8 +133,11 @@ function setFocused(v) {
   if (v) {
     amb.ping();
     document.title = 'Слои внимания';
-    const last = session.layers[session.layers.length - 2];
-    if (last && last.type === 'drift' && last.end - last.start >= ASK_AFTER_MS) ask(last.end - last.start);
+    const last = lastClosedDrift(session);
+    if (last && last.end - last.start >= ASK_AFTER_MS) {
+      pendingDrift = last;
+      ask(last.end - last.start);
+    }
   } else {
     amb.rupture();
     document.title = '◦ разрыв растёт — слои внимания';
@@ -159,13 +163,12 @@ function ask(durMs) {
 }
 
 function answer(name) {
-  if (name) {
-    const l = reclassify(session, 'permitted');
-    if (l) {
-      journal();
-      toast(`слой переведён в породу круга · ${name}`);
-    }
+  if (name && pendingDrift && pendingDrift.type === 'drift') {
+    pendingDrift.type = 'permitted';
+    journal();
+    toast(`слой переведён в породу круга · ${name}`);
   }
+  pendingDrift = null;
   $('#ask').classList.remove('is-on');
 }
 

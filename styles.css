@@ -297,6 +297,7 @@ body[data-view="room"] #view-room { opacity: 1; pointer-events: auto; transform:
 .chip-add input { font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; }
 .chip-add .ghost { padding: 9px 14px; }
 
+.rule { margin-top: 14px; max-width: 560px; }
 .oath {
   font-family: var(--serif); font-style: italic; font-size: clamp(17px, 2vw, 23px);
   line-height: 1.5; color: rgba(232,226,214,0.78); border-left: 1px solid var(--line);

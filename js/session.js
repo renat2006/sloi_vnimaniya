@@ -51,14 +51,12 @@ export function switchState(s, type, at) {
   return true;
 }
 
-export function reclassify(s, type) {
+export function lastClosedDrift(s) {
   for (let i = s.layers.length - 1; i >= 0; i--) {
-    if (s.layers[i].end == null) continue;
-    if (s.layers[i].type === 'drift') {
-      s.layers[i].type = type;
-      return s.layers[i];
-    }
-    if (s.layers[i].type === 'permitted') return null;
+    const l = s.layers[i];
+    if (l.end == null) continue;
+    if (l.type === 'drift') return l;
+    if (l.type === 'permitted') return null;
   }
   return null;
 }
