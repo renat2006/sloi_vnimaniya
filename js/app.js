@@ -30,9 +30,15 @@ let wantAwake = true;
 let warnedAwake = false;
 let hintTimer = null;
 
+let tapped = false;
+addEventListener('pointerdown', () => {
+  tapped = true;
+}, { once: true, passive: true });
+
 const buzz = (pattern) => {
+  if (!tapped || !navigator.vibrate) return;
   try {
-    if (navigator.vibrate) navigator.vibrate(pattern);
+    navigator.vibrate(pattern);
   } catch {}
 };
 
@@ -765,6 +771,43 @@ window.addEventListener('pointermove', (e) => {
   body.style.setProperty('--my', e.clientY + 'px');
 });
 
+const standalone =
+  matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+let installPrompt = null;
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  });
+}
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  installPrompt = e;
+  if (!standalone) $('#install').hidden = false;
+});
+
+window.addEventListener('appinstalled', () => {
+  installPrompt = null;
+  $('#install').hidden = true;
+  toast('приложение установлено — запускайте с домашнего экрана');
+});
+
+$('#install').addEventListener('click', async () => {
+  if (installPrompt) {
+    installPrompt.prompt();
+    const res = await installPrompt.userChoice;
+    if (res.outcome === 'accepted') $('#install').hidden = true;
+    installPrompt = null;
+    return;
+  }
+  toast('в Safari: «Поделиться» → «На экран „Домой“»', 5000);
+});
+
+if (!standalone && /iphone|ipad|ipod/i.test(navigator.userAgent)) {
+  $('#install').hidden = false;
+}
+
 renderCircle();
 $('#task').value = cfg.lastTask || '';
 if (cfg.lastMin) {
@@ -780,6 +823,12 @@ $('#sound-vow').checked = !!cfg.sound;
 $('#sound').setAttribute('aria-pressed', String(!!cfg.sound));
 renderOath();
 const resumed = resume();
+
+const wanted = new URLSearchParams(location.search).get('go');
+if (wanted && ['ritual', 'archive', 'room', 'method'].includes(wanted)) {
+  go(wanted);
+  history.replaceState(null, '', location.pathname);
+}
 
 if (location.hash.startsWith('#s=')) {
   const ok = takeGuest(location.hash.slice(3));

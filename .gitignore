@@ -2,3 +2,4 @@ sloi.db
 sloi.db-shm
 sloi.db-wal
 *.pem
+.deploy.env

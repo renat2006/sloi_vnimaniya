@@ -436,6 +436,7 @@ body[data-view="room"] #view-room { opacity: 1; pointer-events: auto; visibility
   .starter { order: 6; width: 100%; flex-direction: column; align-items: stretch; gap: 16px; }
   .starter .cta { width: 100%; }
   .starter .lnk { align-self: flex-start; }
+  .install { order: 7; }
   .tombstone { order: 7; margin-top: 36px; max-width: none; }
 
   .ritual { max-height: none; overflow: visible; width: 100%; }

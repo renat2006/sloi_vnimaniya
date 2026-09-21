@@ -1,0 +1,24 @@
+{
+  "name": "Слои внимания",
+  "short_name": "Слои",
+  "description": "Интерактивный перформанс о стратиграфии внимания: колба наполняется, пока вы держите фокус.",
+  "lang": "ru",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "portrait",
+  "background_color": "#08090B",
+  "theme_color": "#08090B",
+  "categories": ["productivity", "lifestyle"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Начать сеанс", "short_name": "Сеанс", "url": "./?go=ritual", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Архив кернов", "short_name": "Архив", "url": "./?go=archive", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

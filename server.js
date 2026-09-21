@@ -144,6 +144,7 @@ const MIME = {
   '.css': 'text/css; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
+  '.webmanifest': 'application/manifest+json; charset=utf-8',
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
   '.ico': 'image/x-icon',
@@ -348,9 +349,11 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
       return res.end('нет такой страницы');
     }
+    const ext = path.extname(file).toLowerCase();
     res.writeHead(200, {
-      'content-type': MIME[path.extname(file).toLowerCase()] || 'application/octet-stream',
-      'cache-control': 'no-cache'
+      'content-type': MIME[ext] || 'application/octet-stream',
+      'cache-control': ext === '.png' ? 'public, max-age=604800' : 'no-cache',
+      ...(file.endsWith('sw.js') ? { 'service-worker-allowed': '/' } : {})
     });
     res.end(buf);
   });
