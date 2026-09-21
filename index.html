@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Слои внимания</title>
+<meta name="description" content="Слои внимания — интерактивный перформанс о стратиграфии фокуса.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230A0A0B'/%3E%3Crect x='11' y='4' width='10' height='24' fill='%23D8CBB0'/%3E%3Crect x='11' y='13' width='10' height='3' fill='%233A4552'/%3E%3Crect x='11' y='21' width='10' height='2' fill='%233A4552'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body data-view="intro" data-phase="live">
+<div class="frame" aria-hidden="true"></div>
+<div class="grain" aria-hidden="true"></div>
+<div class="beam" aria-hidden="true"></div>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="mark"></span>
+    <span class="txt">Слои&nbsp;внимания</span>
+  </div>
+  <nav class="nav">
+    <button data-go="intro" class="lnk">Экспликация</button>
+    <button data-go="stage" class="lnk">Сеанс</button>
+    <button data-go="archive" class="lnk">Архив</button>
+    <button id="sound" class="lnk sound" aria-pressed="false"><span class="eq"><i></i><i></i><i></i></span><span class="txt">Звук</span></button>
+  </nav>
+</header>
+
+<main>
+  <section class="view view--intro" id="view-intro">
+    <div class="intro-grid">
+      <div class="intro-left">
+        <p class="overline">Перформанс · 2026 · одиночный посетитель</p>
+        <h1>Слои<br>внимания</h1>
+        <p class="latin">Layers of Attention</p>
+        <dl class="tombstone">
+          <div><dt>Медиум</dt><dd>браузер, время посетителя,<br>событие visibilitychange</dd></div>
+          <div><dt>Длительность</dt><dd>2 · проба<br>15 / 25 / 50 минут</dd></div>
+          <div><dt>Собрание</dt><dd>локальное хранилище зрителя</dd></div>
+        </dl>
+      </div>
+
+      <div class="intro-right">
+        <div class="statement">
+          <p><em>Внимание нельзя увидеть. Но у него остаётся осадок.</em></p>
+          <p>Пока вы удерживаете эту страницу в фокусе, колба наполняется песком — медленно, слой за слоем. Стоит уйти в другую вкладку, окно или приложение, поток меняет состав: откладывается холодная прослойка разрыва. Она растёт ровно столько, сколько вас нет.</p>
+          <p>Вернувшись, вы не получаете внимание обратно целиком. Первые минуты нового слоя мутные — это остаточное внимание, след недоведённой задачи. В породе он виден как дымка над каждым разрывом.</p>
+          <p>Когда колба заполнена, стекло исчезает, искажение формы снимается и время становится линейным. У вас на руках керн — срез сеанса, который читается так же, как геолог читает породу, а климатолог — ледниковый щит.</p>
+        </div>
+
+        <ul class="legend">
+          <li><span class="sw sw--focus"></span><b>Тёплый слой</b><i>непрерывный фокус</i></li>
+          <li><span class="sw sw--drift"></span><b>Холодный слой</b><i>разрыв: вкладка, окно, уведомление</i></li>
+          <li><span class="sw sw--haze"></span><b>Дымка</b><i>остаточное внимание после возвращения</i></li>
+        </ul>
+
+        <p class="fineprint">Метод: высота слоя пропорциональна его длительности; индекс дробления вычисляется как 1&nbsp;−&nbsp;Σ(fᵢ/F)², где fᵢ — длительности непрерывных эпизодов фокуса. В исследованиях экранного внимания средняя длина непрерывного эпизода измеряется десятками секунд. Ни один байт не покидает ваш браузер.</p>
+
+        <div class="starter">
+          <div class="picks" role="radiogroup" aria-label="Длительность сеанса">
+            <button class="pick" data-min="2">2</button>
+            <button class="pick" data-min="15">15</button>
+            <button class="pick is-on" data-min="25">25</button>
+            <button class="pick" data-min="50">50</button>
+            <span class="picks-unit">минут · 2 для пробы</span>
+          </div>
+          <button class="cta" id="begin"><span>Начать сеанс</span><em></em></button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="view view--stage" id="view-stage">
+    <aside class="rail rail--left">
+      <div class="state" id="state">
+        <span class="dot"></span>
+        <span class="state-name">Фокус</span>
+      </div>
+      <div class="readouts">
+        <div class="ro"><dt>Прошло</dt><dd id="ro-time">00:00</dd></div>
+        <div class="ro"><dt>Глубина фокуса</dt><dd id="ro-depth">100%</dd></div>
+        <div class="ro"><dt>Разрывов</dt><dd id="ro-breaks">0</dd></div>
+        <div class="ro"><dt>Слоёв</dt><dd id="ro-strata">1</dd></div>
+        <div class="ro"><dt>Длиннейший слой</dt><dd id="ro-longest">00:00</dd></div>
+        <div class="ro"><dt>Индекс дробления</dt><dd id="ro-frag">0.00</dd></div>
+      </div>
+      <p class="rail-note">Не переключайтесь. Наблюдайте, как оседает время.</p>
+    </aside>
+
+    <div class="vessel-wrap">
+      <canvas id="vessel"></canvas>
+      <div class="tip" id="tip"></div>
+    </div>
+
+    <aside class="rail rail--right">
+      <div class="journal-head">
+        <span class="overline">Журнал слоёв</span>
+        <span id="cap-label" class="cap">колба 25 мин</span>
+      </div>
+      <ol class="journal" id="journal"></ol>
+      <div class="stage-actions">
+        <button class="ghost" id="finish">Завершить и извлечь керн</button>
+      </div>
+
+      <div class="wall-label" id="label">
+        <p class="overline" id="lab-idx">Керн № 001</p>
+        <h2 id="lab-title">Сеанс</h2>
+        <p class="lab-sub" id="lab-sub"></p>
+        <dl class="lab-metrics" id="lab-metrics"></dl>
+        <p class="lab-read" id="lab-read"></p>
+        <div class="lab-actions">
+          <button class="ghost" id="to-archive">В архив</button>
+          <button class="ghost" id="again">Ещё сеанс</button>
+          <button class="ghost" id="png">PNG</button>
+        </div>
+      </div>
+    </aside>
+  </section>
+
+  <section class="view view--archive" id="view-archive">
+    <div class="arc-head">
+      <div>
+        <p class="overline">Зал 2 · собрание кернов</p>
+        <h2>Архив</h2>
+      </div>
+      <div class="arc-tools">
+        <div class="tabs">
+          <button class="tab is-on" data-mode="cores">Керны</button>
+          <button class="tab" data-mode="week">Неделя</button>
+        </div>
+        <button class="ghost" id="demo">Учебные образцы</button>
+        <button class="ghost" id="wipe">Очистить</button>
+      </div>
+    </div>
+    <div id="arc-body" class="arc-body"></div>
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
