@@ -7,6 +7,9 @@ const PORT = process.env.PORT ? +process.env.PORT : 4173;
 const HOST = process.env.HOST || '0.0.0.0';
 const ROOT = __dirname;
 const STALE_MS = 12000;
+const MAX_ROOMS = 64;
+const MAX_PEERS = 120;
+const MAX_CLIENTS = 240;
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -22,7 +25,10 @@ const MIME = {
 const rooms = new Map();
 
 function room(name) {
-  if (!rooms.has(name)) rooms.set(name, { peers: new Map(), clients: new Set() });
+  if (!rooms.has(name)) {
+    if (rooms.size >= MAX_ROOMS) return null;
+    rooms.set(name, { peers: new Map(), clients: new Set() });
+  }
   return rooms.get(name);
 }
 
@@ -100,6 +106,11 @@ const server = http.createServer((req, res) => {
   if (route === '/presence/stream') {
     const name = String(parsed.query.room || 'зал').slice(0, 40);
     const r = room(name);
+    if (!r || r.clients.size >= MAX_CLIENTS) {
+      res.writeHead(503, CORS);
+      res.end();
+      return;
+    }
     res.writeHead(200, {
       ...CORS,
       'content-type': 'text/event-stream; charset=utf-8',
@@ -128,9 +139,9 @@ const server = http.createServer((req, res) => {
         const name = String(d.room || 'зал').slice(0, 40);
         const r = room(name);
         const id = String(d.id || '').slice(0, 40);
-        if (!id) throw new Error('no id');
+        if (!id || !r) throw new Error('bad request');
         if (d.bye) r.peers.delete(id);
-        else
+        else if (r.peers.size < MAX_PEERS || r.peers.has(id))
           r.peers.set(id, {
             id,
             name: String(d.name || 'Гость').slice(0, 32),
