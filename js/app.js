@@ -209,10 +209,10 @@ function resume() {
 
   if (total >= session.capacityMs) {
     finish(true);
-    toast('колба заполнилась, пока вас не было — керн извлечён');
+    toast('колба заполнилась — керн извлечён');
     return true;
   }
-  toast(`сеанс восстановлен · отсутствие ${fmtShort(gap)} засчитано разрывом`);
+  toast(`сеанс восстановлен · ${fmtShort(gap)} легло разрывом`);
   setTimeout(() => setFocused(!document.hidden && document.hasFocus()), 400);
   return true;
 }
@@ -239,7 +239,7 @@ function answer(name) {
     pendingDrift.type = 'permitted';
     journal();
     store.saveLive(session, elapsed(session));
-    toast(`слой переведён в породу круга · ${name}`);
+    toast(`слой стал каменным · ${name}`);
   }
   pendingDrift = null;
   $('#ask').classList.remove('is-on');
@@ -572,7 +572,7 @@ $('#witness').addEventListener('change', (e) => {
   if (wantWitness && !presence.live) {
     e.target.checked = false;
     wantWitness = false;
-    toast('зал не отвечает — нужен server.js или адрес зала в config.js');
+    toast('зал не отвечает');
   }
 });
 $('#finish').addEventListener('click', () => finish(false));
@@ -626,7 +626,7 @@ $('#join').addEventListener('click', async () => {
     return;
   }
   if (!presence.live && !(await presence.probe())) {
-    toast('зал не отвечает — нужен server.js или адрес зала в config.js');
+    toast('зал не отвечает');
     return;
   }
   presence.join(cfg.room, ME, {
