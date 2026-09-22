@@ -437,7 +437,12 @@ body[data-view="room"] #view-room { opacity: 1; pointer-events: auto; visibility
   }
   .nav .lnk::after { display: none; }
   .nav .lnk.is-on { color: var(--bone); border-top-color: var(--warm); background: rgba(232, 226, 214, 0.04); }
-  .nav .sound { display: none; }
+  .topbar > .sound {
+    padding: 16px 8px 16px 18px; font-size: 9.5px; letter-spacing: 0.16em;
+  }
+  .topbar > .sound .txt { display: none; }
+  .topbar > .sound .eq { height: 13px; }
+  .topbar > .sound .eq i { width: 2px; }
   .live-dot { margin-left: 5px; }
 
   .ask { place-items: end stretch; }

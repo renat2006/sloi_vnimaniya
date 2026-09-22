@@ -18,6 +18,8 @@ export class Ambience {
     this.ready = false;
     this.fill = 0;
     this.frozen = false;
+    this.active = false;
+    this.swell = 1;
     this.step = 0;
     this.playing = null;
     this.timer = null;
@@ -191,8 +193,60 @@ export class Ambience {
     });
   }
 
-  tick() {
+  enter() {
+    this.boot();
+    if (!this.ready) return;
+    this.active = true;
+    this.frozen = false;
+    this._prev = null;
+    this._mel = 1;
+    this.step = 0;
+    clearTimeout(this._melTimer);
+    clearTimeout(this._leaveTimer);
+    this.nextChordAt = this.ctx.currentTime + 1.2;
+    this.nextNoteAt = this.ctx.currentTime + 8;
+    this.applyChord(0, this.ctx.currentTime + 0.3);
+    this.setFill(this.fill);
+  }
+
+  leave() {
+    if (!this.ready) return;
+    this.active = false;
+    this.rate = 0;
+    clearTimeout(this._melTimer);
+    clearTimeout(this._leaveTimer);
+    [...this.pedal, ...this.upper].forEach((v) => this.ramp(v.gain.gain, 0, 1.6));
+    this.ramp(this.hiss.gain, 0, 1.2);
+    this.ramp(this.bodyGain.gain, 0, 1.2);
+    this.ramp(this.music.gain, 1, 0.5);
+  }
+
+  duck(hidden) {
+    if (!this.master) return;
+    clearTimeout(this._duckTimer);
+    if (hidden) {
+      this._duckTimer = setTimeout(() => this.ramp(this.master.gain, 0, 2.2), 1400);
+    } else {
+      this.ramp(this.master.gain, this.on ? 0.5 : 0, 0.7);
+    }
+  }
+
+  sandBurst(dir) {
     if (!this.ready || !this.on) return;
+    const t = this.ctx.currentTime;
+    const n = dir < 0 ? 26 : 18;
+    const span = dir < 0 ? 0.75 : 0.5;
+    for (let i = 0; i < n; i++) {
+      const k = i / n;
+      const at = t + k * span + Math.random() * 0.03;
+      const f = dir < 0 ? this.res * (1.15 - k * 0.85) : this.res * (0.3 + k * 1.0);
+      this.grain(at, (dir < 0 ? 1.25 : 1.05) * (1 - k * 0.35), false, f);
+    }
+    this.glide(this.bp.frequency, dir < 0 ? this.res * 0.35 : this.res, dir < 0 ? 0.25 : 0.6);
+  }
+
+  tick() {
+    if (!this.ready || !this.on || !this.active) return;
     const t = this.ctx.currentTime;
     if (this.frozen) return;
 
@@ -233,18 +287,20 @@ export class Ambience {
   }
 
   landing(cold) {
-    if (!this.ready || !this.on) return;
+    if (!this.ready || !this.on || !this.active) return;
     this.grain(this.ctx.currentTime + 0.01, cold ? 0.55 : 1.15, true);
   }
 
-  grain(when, boost = 1, solid = false) {
+  grain(when, boost = 1, solid = false, freq = 0) {
     const ctx = this.ctx;
     const src = ctx.createBufferSource();
     src.buffer = this.grainBuf;
     src.playbackRate.value = 0.7 + Math.random() * 0.8;
     const f = ctx.createBiquadFilter();
     f.type = 'bandpass';
-    f.frequency.value = this.res * (solid ? 0.4 + Math.random() * 0.45 : 0.55 + Math.random() * 1.1);
+    f.frequency.value = freq
+      ? freq * (0.85 + Math.random() * 0.3)
+      : this.res * (solid ? 0.4 + Math.random() * 0.45 : 0.55 + Math.random() * 1.1);
     f.Q.value = solid ? 2.5 + Math.random() * 3 : 4 + Math.random() * 6;
     const env = ctx.createGain();
     const dur = (solid ? 0.05 : 0.028) + Math.random() * 0.05;
@@ -268,11 +324,11 @@ export class Ambience {
     this.fill = f;
     if (!this.ready) return;
     this.res = this.resonance();
-    this.glide(this.bp.frequency, this.res, 4);
+    if (!this.frozen) this.glide(this.bp.frequency, this.res, 4);
     this.glide(this.body.frequency, 150 + f * 260, 4);
     this.glide(this.bodyGain.gain, (1 - f * 0.55) * 0.09 * Math.min(1, this.rate * 2 + 0.25), 2);
     const body = Math.min(1, 0.35 + f * 0.85);
-    this.pedal.forEach((v) => this.glide(v.gain.gain, v.level * body, 3));
+    this.pedal.forEach((v) => this.glide(v.gain.gain, v.level * body * this.swell, 1.4));
     const steps = [0, 0.18, 0.5];
     this.upper.forEach((v, i) => {
       const room = Math.max(0, Math.min(1, (f - steps[i]) / 0.18));
@@ -292,6 +348,7 @@ export class Ambience {
     const wasCold = this._prev === 'drift';
     this._prev = kind;
     this.frozen = cold;
+    this.swell = cold ? 1.85 : stone ? 1.25 : 1;
 
     const spread = cold ? 44 : stone ? 18 : 0;
     const tau = cold ? 1.2 : stone ? 5 : 20;
@@ -300,8 +357,17 @@ export class Ambience {
       this.glide(v.osc.detune, dir * spread * (1 + i * 0.1), tau);
     });
     this.glide(this.air.frequency, cold ? 420 : stone ? 1300 : 2200, cold ? 1 : 7);
-    this.glide(this.bp.frequency, cold ? this.res * 0.45 : this.res, 1.5);
-    this.glide(this.grainBus.gain, cold ? 0.5 : 0.34, 1.5);
+    this.glide(this.grainBus.gain, cold ? 0.55 : 0.34, 1.5);
+    if (cold) {
+      this.sandBurst(-1);
+      this.ramp(this.bp.frequency, 420, 0.9);
+      this.ramp(this.hiss.gain, 0.26, 0.9);
+    } else if (wasCold) {
+      this.sandBurst(1);
+      this.ramp(this.bp.frequency, this.res, 0.9);
+    } else {
+      this.ramp(this.bp.frequency, this.res, 1.5);
+    }
 
     clearTimeout(this._melTimer);
     if (cold) {
@@ -359,8 +425,19 @@ export class Ambience {
     });
   }
 
-  ping(freq = 396, dur = 2.6, vol = 0.1) {
-    this.bell(freq, dur, vol);
+  ping(freq = 396, dur = 2.4, vol = 0.13) {
+    if (!this.ready || !this.on) return;
+    const ctx = this.ctx;
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = 'sine';
+    o.frequency.value = freq;
+    g.gain.setValueAtTime(0, ctx.currentTime);
+    g.gain.linearRampToValueAtTime(vol, ctx.currentTime + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + dur);
+    o.connect(g).connect(this.master);
+    o.start();
+    o.stop(ctx.currentTime + dur + 0.1);
   }
 
   rupture() {
@@ -369,19 +446,20 @@ export class Ambience {
     const o = ctx.createOscillator();
     const g = ctx.createGain();
     o.type = 'sine';
-    o.frequency.setValueAtTime(ROOT * 3, ctx.currentTime);
-    o.frequency.exponentialRampToValueAtTime(ROOT * 0.92, ctx.currentTime + 1.3);
-    g.gain.setValueAtTime(0.09, ctx.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 1.5);
+    o.frequency.setValueAtTime(330, ctx.currentTime);
+    o.frequency.exponentialRampToValueAtTime(74, ctx.currentTime + 1.1);
+    g.gain.setValueAtTime(0.12, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 1.3);
     o.connect(g).connect(this.master);
     o.start();
-    o.stop(ctx.currentTime + 1.6);
+    o.stop(ctx.currentTime + 1.4);
   }
 
   resolve() {
     if (!this.ready) return;
     const ctx = this.ctx;
     this.frozen = true;
+    this.swell = 1;
     clearTimeout(this._melTimer);
     [...this.pedal, ...this.upper].forEach((v) => this.glide(v.osc.detune, 0, 0.8));
     this.glide(this.air.frequency, 3400, 1.5);
@@ -404,11 +482,7 @@ export class Ambience {
 
     this.bell(ROOT * 4, 6, 0.1);
     this.bell(ROOT * 6, 5, 0.045, 0.3);
-    setTimeout(() => {
-      this.frozen = false;
-      this._mel = 1;
-      this.setFill(this.fill);
-    }, 6000);
+    this._leaveTimer = setTimeout(() => this.leave(), 6800);
   }
 
   stopCore() {

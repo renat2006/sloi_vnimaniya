@@ -25,6 +25,7 @@ let peers = [];
 let wantWitness = false;
 let pendingDrift = null;
 let savedAt = 0;
+let listening = null;
 let wakeLock = null;
 let wantAwake = true;
 let warnedAwake = false;
@@ -117,8 +118,17 @@ function syncNav() {
 
 function go(view) {
   if (view === body.dataset.view) return;
+  const from = body.dataset.view;
   body.dataset.view = view;
   syncNav();
+  if (from === 'archive' || from === 'room' || (from === 'stage' && view !== 'stage')) {
+    amb.stopCore();
+    if (listening) {
+      listening.btn.textContent = listening.label;
+      listening = null;
+    }
+  }
+  if (from === 'stage' && view !== 'stage' && (!session || session.ended)) amb.leave();
   if (view === 'archive') renderArchive();
   if (view === 'room') renderRoom();
   if (view === 'ritual') renderOath();
@@ -196,6 +206,7 @@ function begin() {
   }
   warnedAwake = false;
   holdScreen($('#awake').checked);
+  amb.enter();
   buzz(14);
   amb.ping(396, 2, 0.08);
   clearTimeout(hintTimer);
@@ -668,10 +679,11 @@ $('#sound-vow').addEventListener('change', async (e) => {
   amb.boot();
   await amb.enable(e.target.checked);
 });
-$('#again').addEventListener('click', () => go('ritual'));
+$('#again').addEventListener('click', () => {
+  amb.leave();
+  go('ritual');
+});
 $('#to-archive').addEventListener('click', () => go('archive'));
-let listening = null;
-
 function listenTo(core, btn, label) {
   const prev = listening;
   if (prev) {
@@ -788,6 +800,7 @@ window.addEventListener('blur', () => setFocused(false));
 window.addEventListener('focus', () => setFocused(true));
 document.addEventListener('visibilitychange', () => {
   setFocused(!document.hidden && document.hasFocus());
+  amb.duck(document.hidden);
   if (!document.hidden && wantAwake && session && !session.ended) holdScreen(true);
 });
 window.addEventListener('keydown', (e) => {
