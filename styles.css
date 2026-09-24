@@ -83,6 +83,8 @@ body[data-drift="1"] .beam { opacity: 0.12; }
 .lnk:hover { color: var(--bone); }
 .lnk:hover::after, .lnk.is-on::after { transform: scaleX(1); }
 .lnk.is-on { color: var(--bone); }
+a.lnk { text-decoration: none; }
+button.lnk { background: none; border: 0; cursor: pointer; font-family: inherit; }
 
 .sound { display: flex; align-items: center; gap: 8px; }
 .eq { display: flex; align-items: flex-end; gap: 2px; height: 9px; }
@@ -428,7 +430,12 @@ body[data-net="offline"] #offline-banner {
 .fold > *:not(summary) { animation: rise 0.4s var(--ease) both; }
 .fold .tombstone { margin-top: 16px; border-top: 0; padding-top: 0; }
 .fold .legend { margin-top: 16px; border-top: 0; padding-top: 0; }
-.intro-install { margin-top: 12px; }
+.intro-install {
+  margin-top: 26px; padding-top: 18px; border-top: 1px solid var(--line);
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 30px;
+}
+.intro-install .lnk { color: var(--dim2); }
+.intro-install .lnk:hover, .intro-install .lnk:focus-visible { color: var(--bone); }
 
 .hint {
   display: inline-flex; align-items: center; justify-content: center;
