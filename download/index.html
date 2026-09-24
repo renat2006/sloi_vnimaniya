@@ -218,7 +218,7 @@ apksigner verify --print-certs Sloi-Vnimaniya-*-android.apk</pre>
   const API = `https://api.github.com/repos/${REPO}/releases?per_page=30`;
   const RELEASES_URL = `https://github.com/${REPO}/releases`;
   const CACHE_KEY = 'sloi.download.releases.v1';
-  const TTL = 10 * 60 * 1000;
+  const TTL = 5 * 60 * 1000;
   const CERT = '5E:ED:08:2C:57:81:C8:B8:55:C2:32:69:DC:53:55:44:BC:39:C0:C1:D6:9C:52:79:F8:37:66:62:6F:75:A5:CA';
 
   const $ = (s) => document.querySelector(s);
@@ -335,7 +335,9 @@ apksigner verify --print-certs Sloi-Vnimaniya-*-android.apk</pre>
 
   async function load() {
     const cached = readCache();
-    if (cached && Date.now() - cached.at < TTL) { render(cached.data); return; }
+    const hasApk = cached && normalize(cached.data).length > 0;
+    if (cached) render(cached.data);
+    if (hasApk && Date.now() - cached.at < TTL) return;
     try {
       const res = await fetch(API, { headers: { Accept: 'application/vnd.github+json' } });
       if (!res.ok) throw new Error(String(res.status));
@@ -343,8 +345,7 @@ apksigner verify --print-certs Sloi-Vnimaniya-*-android.apk</pre>
       try { localStorage.setItem(CACHE_KEY, JSON.stringify({ at: Date.now(), data })); } catch {}
       render(data);
     } catch {
-      if (cached) render(cached.data);
-      else renderError();
+      if (!cached) renderError();
     }
   }
 
