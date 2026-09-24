@@ -4,6 +4,9 @@ import android.app.StatusBarManager;
 import android.appwidget.AppWidgetManager;
 import android.content.ComponentName;
 import android.content.Context;
+import android.content.Intent;
+import android.net.Uri;
+import android.provider.Settings;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.drawable.Icon;
@@ -212,5 +215,54 @@ public class SloiBridgePlugin extends Plugin {
             res.put("png", Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP));
             call.resolve(res);
         });
+    }
+
+    /** Версия установленного приложения и право ставить обновления. */
+    @PluginMethod
+    public void getAppInfo(PluginCall call) {
+        Context ctx = getContext();
+        JSObject res = new JSObject();
+        try {
+            android.content.pm.PackageInfo pi = ctx.getPackageManager().getPackageInfo(ctx.getPackageName(), 0);
+            res.put("versionName", pi.versionName);
+            res.put("versionCode", (long) pi.getLongVersionCode());
+        } catch (Exception e) {
+            res.put("versionName", "0.0.0");
+        }
+        res.put("canInstall", ctx.getPackageManager().canRequestPackageInstalls());
+        call.resolve(res);
+    }
+
+    /** Скачивает и устанавливает APK из релизов проекта; ход загрузки приходит событием updateProgress. */
+    @PluginMethod
+    public void installUpdate(PluginCall call) {
+        Context ctx = getContext();
+        String url = call.getString("url"), sums = call.getString("sumsUrl");
+        JSObject res = new JSObject();
+        if (!Updater.allowed(url) || !Updater.allowed(sums)) {
+            call.reject("адрес обновления не из релизов проекта");
+            return;
+        }
+        if (!ctx.getPackageManager().canRequestPackageInstalls()) {
+            Intent i = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + ctx.getPackageName()))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            ctx.startActivity(i);
+            res.put("needsPermission", true);
+            call.resolve(res);
+            return;
+        }
+        new Thread(() -> {
+            try {
+                Updater.install(ctx, url, sums, pct -> {
+                    JSObject p = new JSObject();
+                    p.put("percent", pct);
+                    notifyListeners("updateProgress", p);
+                });
+                res.put("started", true);
+                call.resolve(res);
+            } catch (Exception e) {
+                call.reject(e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
+            }
+        }, "sloi-updater").start();
     }
 }

@@ -46,6 +46,27 @@ function onBack(cb) {
   } catch {}
 }
 
+async function appInfo() {
+  if (!isNative) return null;
+  return call('SloiBridge', 'getAppInfo');
+}
+
+async function installUpdate(url, sumsUrl) {
+  if (!isNative) return null;
+  try {
+    return await cap.nativePromise('SloiBridge', 'installUpdate', { url, sumsUrl });
+  } catch (e) {
+    return /not implemented|UNIMPLEMENTED/i.test(String(e && (e.message || e))) ? null : { error: String((e && e.message) || e) };
+  }
+}
+
+function onUpdateProgress(cb) {
+  if (!isNative) return;
+  try {
+    cap.addListener('SloiBridge', 'updateProgress', (e) => cb(e && e.percent));
+  } catch {}
+}
+
 function minimize() {
   return call('App', 'minimizeApp');
 }
@@ -116,4 +137,4 @@ function onOpen(cb) {
   call('App', 'getLaunchUrl').then((r) => r && r.url && fromUrl(r.url));
 }
 
-export const native = { isNative, haptic, keepAwake, addTile, onBack, minimize, widget, pinWidget, enableReminders, scheduleEnd, cancelEnd, onOpen };
+export const native = { isNative, appInfo, installUpdate, onUpdateProgress, haptic, keepAwake, addTile, onBack, minimize, widget, pinWidget, enableReminders, scheduleEnd, cancelEnd, onOpen };

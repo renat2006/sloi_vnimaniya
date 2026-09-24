@@ -154,6 +154,7 @@
 
             <button type="button" class="ghost" id="pin-widget" style="display:none">Добавить виджет на экран</button>
             <button type="button" class="ghost" id="add-tile" style="display:none">Плитка в быстрых настройках</button>
+            <button type="button" class="ghost" id="check-update" style="display:none">Проверить обновления</button>
           </div>
           <p class="side-note rule">Если вы вернётесь позже чем через 8 секунд, приложение спросит, где вы были.</p>
         </details>
@@ -319,6 +320,15 @@
   </div>
 </div>
 
+<aside class="update" id="update" role="dialog" aria-labelledby="update-t" hidden>
+  <p class="update-t" id="update-t">Доступна версия <b id="update-v"></b></p>
+  <ul class="update-n" id="update-n"></ul>
+  <div class="update-bar" id="update-bar-wrap" hidden><i id="update-bar"></i></div>
+  <div class="update-a">
+    <button type="button" class="ghost primary" id="update-go">Обновить</button>
+    <button type="button" class="lnk" id="update-later">Позже</button>
+  </div>
+</aside>
 <div class="toast" id="toast"></div>
 <script type="module" src="js/app.js"></script>
 </body>

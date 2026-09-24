@@ -12,5 +12,5 @@ module.exports = {
     LocalNotifications: { smallIcon: 'ic_stat_sloi', iconColor: '#D8CBB0' },
     SystemBars: { style: 'DARK' }
   },
-  android: { allowMixedContent: false }
+  android: { allowMixedContent: false, webContentsDebuggingEnabled: !!process.env.SLOI_URL }
 };

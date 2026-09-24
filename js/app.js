@@ -8,6 +8,7 @@ import {
 import * as store from './store.js';
 import * as archive from './archive.js';
 import { native } from './native.js';
+import { initUpdates } from './updates.js';
 
 const $ = (s) => document.querySelector(s);
 const body = document.body;
@@ -1435,6 +1436,7 @@ if (wanted) {
   history.replaceState(null, '', location.pathname);
 }
 native.onOpen(openTarget);
+initUpdates({ toast, busy: () => !!session && !session.ended });
 native.onBack(() => {
   const v = body.dataset.view;
   if (body.dataset.sheet === '1') sheet(false);
