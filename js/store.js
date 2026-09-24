@@ -11,22 +11,42 @@ const read = (k, fallback) => {
     return fallback;
   }
 };
+
+let writeErrorHandler = null;
+let writeErrorNotified = false;
+
+export function setWriteErrorHandler(fn) {
+  writeErrorHandler = fn;
+}
+
 const write = (k, v) => {
   try {
     localStorage.setItem(k, JSON.stringify(v));
-  } catch {}
+    return true;
+  } catch (err) {
+    if (!writeErrorNotified) {
+      writeErrorNotified = true;
+      if (typeof writeErrorHandler === 'function') {
+        try { writeErrorHandler(err); } catch {}
+      }
+    }
+    return false;
+  }
 };
 
 const NAMES = ['Наблюдатель', 'Смотритель', 'Свидетель', 'Собиратель', 'Хранитель'];
 
 export function config() {
   const c = read(CFG, null);
-  if (c && c.name) return c;
+  if (c && c.name) {
+    return { notify: false, ...c };
+  }
   const fresh = {
     name: `${NAMES[Math.floor(Math.random() * NAMES.length)]} ${Math.floor(Math.random() * 89 + 10)}`,
     circle: ['Редактор кода', 'Справочник', 'Заметки'],
     room: 'зал',
     sound: false,
+    notify: false,
     bestMs: 0
   };
   write(CFG, fresh);
@@ -61,9 +81,17 @@ export function clearAll() {
   write(KEY, []);
 }
 
-export function saveLive(session, elapsedMs) {
-  if (!session || session.ended) return;
-  write(LIVE, {
+export function saveLive(session, elapsedMs, owner) {
+  if (!session || session.ended) return false;
+  const existing = read(LIVE, null);
+  if (existing && existing.owner && owner && existing.owner !== owner) {
+    const age = Date.now() - (existing.savedAt || 0);
+    if (age < 6000) {
+      return false;
+    }
+  }
+  return write(LIVE, {
+    owner: owner || null,
     capacityMs: session.capacityMs,
     task: session.task,
     startedAt: session.startedAt,
@@ -80,8 +108,14 @@ export function loadLive() {
   return v;
 }
 
-export function dropLive() {
+export function dropLive(owner) {
   try {
+    if (owner) {
+      const existing = read(LIVE, null);
+      if (existing && existing.owner && existing.owner !== owner) {
+        return;
+      }
+    }
     localStorage.removeItem(LIVE);
   } catch {}
 }
@@ -123,29 +157,64 @@ export function encode(core, author) {
     .replace(/=+$/, '');
 }
 
+function sanitizeStr(str, maxLen) {
+  if (typeof str !== 'string') return '';
+  return str
+    .replace(/[<>\x00-\x1F\x7F-\x9F]/g, '')
+    .trim()
+    .slice(0, maxLen);
+}
+
 export function decode(text) {
   try {
+    if (!text || typeof text !== 'string') return null;
     const raw = text.trim().replace(/-/g, '+').replace(/_/g, '/');
     const s = decodeURIComponent(escape(atob(raw)));
     const p = s.split('~');
-    if (p[0] !== 's1') return null;
-    const capacityMs = +p[1] * 1000;
-    const durationMs = +p[2] * 1000;
-    const startedAt = +p[3] * 1000;
-    const author = p[4] || 'Гость';
-    const task = p[5] || '';
+    if (p[0] !== 's1' || p.length < 8) return null;
+
+    const capSec = +p[1];
+    const durSec = +p[2];
+    const startSec = +p[3];
+
+    if (!Number.isFinite(capSec) || !Number.isFinite(durSec) || !Number.isFinite(startSec)) return null;
+
+    const capacityMs = capSec * 1000;
+    const durationMs = durSec * 1000;
+    const startedAt = startSec * 1000;
+
+    const MAX_24H_MS = 24 * 3600 * 1000;
+    if (capacityMs <= 0 || capacityMs > MAX_24H_MS) return null;
+    if (durationMs < 0 || durationMs > MAX_24H_MS) return null;
+    if (startedAt <= 0) return null;
+
+    const author = sanitizeStr(p[4] || 'Гость', 24) || 'Гость';
+    const task = sanitizeStr(p[5] || '', 80);
     const witnessed = p[6] === '1';
+
+    const rawLayers = p[7].split('!').filter(Boolean);
+    if (!rawLayers.length || rawLayers.length > 500) return null;
+
     let cursor = 0;
-    const layers = p[7]
-      .split('!')
-      .filter(Boolean)
-      .map((chunk) => {
-        const [t, d] = chunk.split('.');
-        const start = cursor;
-        cursor += +d * 1000;
-        return { type: TR[+t] || 'focus', start, end: cursor };
-      });
+    const layers = [];
+    for (const chunk of rawLayers) {
+      const parts = chunk.split('.');
+      if (parts.length !== 2) return null;
+      const t = +parts[0];
+      const d = +parts[1];
+      if (!Number.isFinite(t) || !Number.isFinite(d)) return null;
+      if (t < 0 || t > 2 || d < 0) return null;
+      const layerDurMs = d * 1000;
+      if (cursor + layerDurMs > MAX_24H_MS) return null;
+      const start = cursor;
+      cursor += layerDurMs;
+      layers.push({ type: TR[t] || 'focus', start, end: cursor });
+    }
+
     if (!layers.length) return null;
+    const effectiveDur = durationMs || cursor;
+    if (effectiveDur > MAX_24H_MS) return null;
+
     return {
       id: 'g' + startedAt.toString(36) + layers.length,
       author,
@@ -154,7 +223,7 @@ export function decode(text) {
       witnessed,
       startedAt,
       capacityMs,
-      durationMs: durationMs || cursor,
+      durationMs: effectiveDur,
       layers
     };
   } catch {

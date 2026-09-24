@@ -3,10 +3,11 @@ import { Ambience } from './audio.js';
 import { Presence } from './net.js';
 import {
   createSession, elapsed, switchState, lastClosedDrift, sealed, metricsOf,
-  currentRunMs, fmt, fmtShort, ASK_AFTER_MS
+  currentRunMs, fmt, fmtShort, ASK_AFTER_MS, MERGE_MS
 } from './session.js';
 import * as store from './store.js';
 import * as archive from './archive.js';
+import { native } from './native.js';
 
 const $ = (s) => document.querySelector(s);
 const body = document.body;
@@ -29,7 +30,13 @@ let listening = null;
 let wakeLock = null;
 let wantAwake = true;
 let warnedAwake = false;
-let hintTimer = null;
+let ruptureTimer = null;
+let otherTabWarned = false;
+let lastPresenceStatus = 'offline';
+let lastDegradedToastAt = 0;
+let hadLink = false;
+let linkLost = false;
+let wipeTimer = null;
 
 let tapped = false;
 addEventListener('pointerdown', () => {
@@ -37,11 +44,59 @@ addEventListener('pointerdown', () => {
 }, { once: true, passive: true });
 
 const buzz = (pattern) => {
+  if (native.isNative && native.haptic(pattern)) return;
   if (!tapped || !navigator.vibrate) return;
   try {
     navigator.vibrate(pattern);
   } catch {}
 };
+
+function widgetSync(result) {
+  if (!native.isNative) return;
+  const live = !!session && !session.ended;
+  const st = {
+    active: live,
+    drift: live && !focused,
+    startedAt: live ? session.startedAt : 0,
+    capacityMs: live ? session.capacityMs : 0,
+    task: live ? session.task || '' : ''
+  };
+  if (result) Object.assign(st, result);
+  native.widget(st);
+}
+
+function updateBadgeCount(count) {
+  if (typeof navigator !== 'undefined' && 'setAppBadge' in navigator) {
+    try {
+      if (count > 0) navigator.setAppBadge(count).catch(() => {});
+      else navigator.clearAppBadge().catch(() => {});
+    } catch {}
+  }
+}
+
+function clearBadgeCount() {
+  if (typeof navigator !== 'undefined' && 'clearAppBadge' in navigator) {
+    try {
+      navigator.clearAppBadge().catch(() => {});
+    } catch {}
+  }
+}
+
+function persistLive(elapsedMs) {
+  if (!session || session.ended) return;
+  const ok = store.saveLive(session, elapsedMs, ME);
+  if (!ok && !otherTabWarned) {
+    const existing = store.loadLive();
+    if (existing && existing.owner && existing.owner !== ME && (Date.now() - (existing.savedAt || 0) < 6000)) {
+      otherTabWarned = true;
+      toast('Сеанс уже идёт в другой вкладке.');
+    }
+  }
+}
+
+store.setWriteErrorHandler(() => {
+  toast('Браузер не даёт сохранять данные — сеанс не переживёт перезагрузку.', 5000);
+});
 
 async function holdScreen(on) {
   wantAwake = on;
@@ -77,6 +132,37 @@ const FEED_TXT = {
   core: 'извлёк керн'
 };
 
+function syncOfflineBanner() {
+  const isOffline = !navigator.onLine;
+  const banner = $('#offline-banner');
+  if (isOffline) {
+    body.dataset.net = 'offline';
+    if (banner) banner.removeAttribute('hidden');
+  } else {
+    delete body.dataset.net;
+    if (banner) banner.setAttribute('hidden', '');
+  }
+}
+
+function updateNetStatus(s = presence.status) {
+  const el = $('#net-state');
+  if (!el) return;
+  el.dataset.status = s;
+  if (presence.joined) {
+    if (s === 'live') el.textContent = 'в зале · на связи';
+    else if (s === 'connecting') el.textContent = 'настраиваем связь…';
+    else if (s === 'degraded') el.textContent = 'связь замерла · сохраняем локально';
+    else el.textContent = 'локальный режим · тихий сеанс';
+    el.classList.toggle('is-live', s === 'live');
+  } else {
+    el.classList.remove('is-live');
+    if (presence.live) el.textContent = 'зал доступен · вы не вошли';
+    else el.textContent = 'локальный режим · тихий сеанс';
+  }
+  syncOfflineBanner();
+  updateBadge();
+}
+
 const presence = new Presence({
   onPeers: (list) => {
     peers = list;
@@ -89,14 +175,27 @@ const presence = new Presence({
     if (ev && ev.kind === 'core') renderShared();
   },
   onStatus: (s) => {
-    const el = $('#net-state');
-    const txt = {
-      live: 'живой зал · на связи',
-      connecting: 'переподключение…',
-      offline: presence.live ? 'зал доступен · вы не вошли' : 'локальный режим · сервер не запущен'
-    };
-    el.textContent = txt[s] || s;
-    el.classList.toggle('is-live', s === 'live');
+    if (presence.joined) {
+      const now = Date.now();
+      if (s === 'live') {
+        if (linkLost) {
+          linkLost = false;
+          toast('Связь восстановлена.');
+        }
+        hadLink = true;
+      } else if (hadLink && !linkLost && (s === 'degraded' || s === 'offline')) {
+        linkLost = true;
+        if (now - lastDegradedToastAt > 30000) {
+          lastDegradedToastAt = now;
+          toast('Связь с залом замерла. Сеанс идёт и пишется локально.');
+        }
+      }
+    } else {
+      hadLink = false;
+      linkLost = false;
+    }
+    lastPresenceStatus = s;
+    updateNetStatus(s);
     $('#join').textContent = presence.joined ? 'Выйти' : 'Войти';
     updateLiveDot();
   }
@@ -121,6 +220,13 @@ function go(view) {
   const from = body.dataset.view;
   body.dataset.view = view;
   syncNav();
+  if (from === 'stage' && view !== 'stage') {
+    stage.stop();
+  } else if (from !== 'stage' && view === 'stage') {
+    if (session) {
+      stage.run();
+    }
+  }
   if (from === 'archive' || from === 'room' || (from === 'stage' && view !== 'stage')) {
     amb.stopCore();
     if (listening) {
@@ -131,7 +237,11 @@ function go(view) {
   if (from === 'stage' && view !== 'stage' && (!session || session.ended)) amb.leave();
   if (view === 'archive') renderArchive();
   if (view === 'room') renderRoom();
-  if (view === 'ritual') renderOath();
+  if (view === 'ritual') {
+    renderOath();
+    const notifyEl = $('#notify');
+    if (notifyEl) notifyEl.checked = !!cfg.notify;
+  }
 }
 
 function toast(text, ms = 2800) {
@@ -142,17 +252,25 @@ function toast(text, ms = 2800) {
   t._t = setTimeout(() => t.classList.remove('is-on'), ms);
 }
 
-function renderCircle() {
+function renderCircle(newChipName = null) {
   const box = $('#circle');
   box.innerHTML = '';
   if (!cfg.circle.length) {
     box.innerHTML = '<span class="side-note">Круг пуст — любой уход будет разрывом.</span>';
+    return;
   }
   cfg.circle.forEach((name, i) => {
     const el = document.createElement('span');
-    el.className = 'chip is-on';
-    el.innerHTML = `<b>${esc(name)}</b><span title="убрать">×</span>`;
-    el.querySelector('span').addEventListener('click', () => {
+    const isNew = name === newChipName;
+    el.className = 'chip is-on' + (isNew ? ' chip--new' : '');
+    el.innerHTML = `<b>${esc(name)}</b><button class="chip-x" type="button" aria-label="Убрать «${esc(name)}»">×</button>`;
+    if (isNew) {
+      const clean = () => el.classList.remove('chip--new');
+      el.addEventListener('animationend', clean, { once: true });
+      setTimeout(clean, 600);
+    }
+    el.querySelector('.chip-x').addEventListener('click', (e) => {
+      e.stopPropagation();
       cfg = store.setConfig({ circle: cfg.circle.filter((_, j) => j !== i) });
       renderCircle();
       renderOath();
@@ -167,7 +285,8 @@ function addChip() {
   if (!v || cfg.circle.includes(v) || cfg.circle.length >= 8) return;
   cfg = store.setConfig({ circle: [...cfg.circle, v] });
   inp.value = '';
-  renderCircle();
+  buzz(10);
+  renderCircle(v);
   renderOath();
 }
 
@@ -177,6 +296,91 @@ function renderOath() {
   $('#oath').textContent =
     `Если меня потянет отвлечься — я вернусь к: ${task}. ` +
     (c.length ? `Круг: ${c.join(', ')}. Всё вне круга — разрыв.` : 'Круг пуст: любой уход — разрыв.');
+}
+
+let currentPushEndpoint = null;
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding)
+    .replace(/-/g, '+')
+    .replace(/_/g, '/');
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
+function sendPushSubscribe() {
+  if (!session || session.ended) return;
+  if (!cfg.notify) return;
+  if (native.isNative) {
+    native.scheduleEnd(session.startedAt + session.capacityMs);
+    return;
+  }
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  if (!('serviceWorker' in navigator)) return;
+
+  const endAt = session.startedAt + session.capacityMs;
+  if (endAt <= Date.now()) return;
+
+  navigator.serviceWorker.ready
+    .then((reg) => {
+      if (!reg?.pushManager) return null;
+      return reg.pushManager.getSubscription();
+    })
+    .then((sub) => {
+      if (!sub || !session || session.ended) return;
+      currentPushEndpoint = sub.endpoint;
+      const payload = {
+        subscription: sub.toJSON ? sub.toJSON() : sub,
+        endAt
+      };
+      fetch('/push/subscribe', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload),
+        keepalive: true
+      }).catch(() => {});
+    })
+    .catch(() => {});
+}
+
+function sendPushCancel() {
+  if (native.isNative) {
+    native.cancelEnd();
+    return;
+  }
+  const cancelWith = (ep) => {
+    if (!ep) return;
+    try {
+      fetch('/push/cancel', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ endpoint: ep }),
+        keepalive: true
+      }).catch(() => {});
+    } catch {}
+  };
+
+  if (currentPushEndpoint) {
+    cancelWith(currentPushEndpoint);
+  } else if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.ready
+      .then((reg) => {
+        if (!reg?.pushManager) return null;
+        return reg.pushManager.getSubscription();
+      })
+      .then((sub) => {
+        if (sub?.endpoint) {
+          currentPushEndpoint = sub.endpoint;
+          cancelWith(sub.endpoint);
+        }
+      })
+      .catch(() => {});
+  }
 }
 
 function begin() {
@@ -198,8 +402,9 @@ function begin() {
   stage.targetMs = cfg.bestMs > 0 ? cfg.bestMs : null;
   sheet(false);
   amb.mode('focus');
-  store.saveLive(session, 0);
+  persistLive(0);
   journal();
+  clearBadgeCount();
   updateBadge();
   if (session.witnessed) {
     presence.join(cfg.room, ME, { name: cfg.name, fill: 0, mode: 'focus', strata: 1 });
@@ -209,15 +414,10 @@ function begin() {
   amb.enter();
   buzz(14);
   amb.ping(396, 2, 0.08);
-  clearTimeout(hintTimer);
-  if (!cfg.taught) {
-    hintTimer = setTimeout(() => {
-      if (session && !session.ended) {
-        toast('попробуйте уйти в другое приложение и вернуться — увидите, как ложится слой разрыва', 7000);
-        cfg = store.setConfig({ taught: true });
-      }
-    }, 9000);
-  }
+  clearTimeout(ruptureTimer);
+  ruptureTimer = null;
+  sendPushSubscribe();
+  widgetSync();
   go('stage');
 }
 
@@ -232,6 +432,10 @@ function setFocused(v) {
   amb.mode(v ? 'focus' : 'drift');
   presence.set({ mode: v ? 'focus' : 'drift' });
   if (v) {
+    if (ruptureTimer) {
+      clearTimeout(ruptureTimer);
+      ruptureTimer = null;
+    }
     amb.ping();
     document.title = 'Слои внимания';
     const last = lastClosedDrift(session);
@@ -241,11 +445,20 @@ function setFocused(v) {
     }
     buzz(12);
   } else {
-    amb.rupture();
-    buzz([20, 70, 20]);
-    document.title = '◦ разрыв растёт — слои внимания';
+    clearTimeout(ruptureTimer);
+    ruptureTimer = setTimeout(() => {
+      ruptureTimer = null;
+      if (!focused && session && !session.ended) {
+        amb.rupture();
+        buzz(18);
+        document.title = '◦ разрыв растёт — слои внимания';
+        const breaks = session.layers.filter((l) => l.type === 'drift').length;
+        updateBadgeCount(breaks);
+      }
+    }, MERGE_MS + 30);
   }
-  store.saveLive(session, at);
+  persistLive(at);
+  widgetSync();
   journal();
 }
 
@@ -261,12 +474,21 @@ function resume() {
   session.startedAt = v.startedAt;
   session.witnessed = !!v.witnessed;
   session.layers = v.layers;
+
   const open = session.layers[session.layers.length - 1];
-  if (open.end == null) open.end = v.elapsedMs;
-  session.layers.push({ type: 'drift', start: v.elapsedMs, end: null });
-  const total = v.elapsedMs + gap;
-  session.t0 = performance.now() - total;
+  if (open) {
+    if (open.type === 'drift') {
+      open.end = null;
+    } else {
+      if (open.end == null) open.end = v.elapsedMs;
+      session.layers.push({ type: 'drift', start: v.elapsedMs, end: null });
+    }
+  } else {
+    session.layers.push({ type: 'drift', start: 0, end: null });
+  }
+
   focused = false;
+  const curElapsed = elapsed(session);
 
   capacityMin = Math.round(v.capacityMs / 60000);
   $('#cap-label').textContent = `колба ${capacityMin} мин`;
@@ -280,12 +502,14 @@ function resume() {
   journal();
   go('stage');
 
-  if (total >= session.capacityMs) {
+  if (curElapsed >= session.capacityMs) {
     finish(true);
     toast('колба заполнилась — керн извлечён');
     return true;
   }
   toast(`сеанс восстановлен · ${fmtShort(gap)} легло разрывом`);
+  sendPushSubscribe();
+  widgetSync();
   setTimeout(() => setFocused(!document.hidden && document.hasFocus()), 400);
   return true;
 }
@@ -312,7 +536,7 @@ function answer(name) {
     pendingDrift.type = 'permitted';
     amb.forgive();
     journal();
-    store.saveLive(session, elapsed(session));
+    persistLive(elapsed(session));
     toast(`слой стал каменным · ${name}`);
   }
   pendingDrift = null;
@@ -337,11 +561,18 @@ function journal() {
     });
 }
 
-function hud(trueMs) {
+function hud() {
   if (!session || session.ended) return;
   const now = performance.now();
   if (now - hudAt < 150) return;
   hudAt = now;
+
+  const curElapsed = elapsed(session);
+  if (curElapsed >= session.capacityMs) {
+    finish(true);
+    return;
+  }
+  const trueMs = Math.min(session.capacityMs, curElapsed);
   const layers = sealed(session);
   const m = metricsOf(layers, trueMs);
   const run = currentRunMs(layers, trueMs);
@@ -373,7 +604,7 @@ function hud(trueMs) {
 
   if (now - savedAt > 4000) {
     savedAt = now;
-    store.saveLive(session, trueMs);
+    persistLive(trueMs);
   }
 }
 
@@ -454,7 +685,18 @@ function updateBadge() {
   const el = $('#witness-badge');
   const on = session && !session.ended && session.witnessed && presence.joined;
   el.classList.toggle('is-on', !!on);
-  if (on) el.textContent = `при свидетелях · в зале ${Math.max(1, peers.length)}`;
+  if (!on) return;
+
+  if (presence.status === 'degraded' || presence.status === 'offline') {
+    el.textContent = 'сеанс продолжается наедине · связь вернётся';
+    return;
+  }
+  const liveCount = peers.filter((p) => p.status !== 'stale').length;
+  if (liveCount > 1) {
+    el.textContent = `при свидетелях · в зале ${liveCount}`;
+  } else {
+    el.textContent = 'вы одни в зале · ждём свидетелей';
+  }
 }
 
 function finish(auto) {
@@ -465,8 +707,12 @@ function finish(auto) {
     return;
   }
   answer(null);
+  clearTimeout(ruptureTimer);
+  ruptureTimer = null;
+  clearBadgeCount();
   session.ended = true;
   session.endMs = e;
+  if (!(auto && document.hidden)) sendPushCancel();
   const layers = sealed(session);
   const m = metricsOf(layers, e);
   lastIndex = store.list().length + 1;
@@ -481,7 +727,12 @@ function finish(auto) {
     metrics: m
   });
   cfg = store.config();
-  store.dropLive();
+  store.dropLive(ME);
+  widgetSync({
+    lastDepth: Math.round((Number(m.depth) || 0) * 100),
+    lastMs: e,
+    lastBreaks: Math.round(Number(m.breaks) || 0)
+  });
   if (session.witnessed) {
     presence.publish(lastCore, cfg.name).then((ok) => {
       if (ok) toast('керн отправлен в общее собрание');
@@ -495,7 +746,6 @@ function finish(auto) {
   amb.mode('focus');
   amb.resolve();
   buzz([30, 90, 30]);
-  clearTimeout(hintTimer);
   holdScreen(false);
   $('#awake-badge').classList.remove('is-on');
   stage.extract();
@@ -510,6 +760,17 @@ function finish(auto) {
     new Date(session.startedAt).toLocaleString('ru-RU', {
       day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit'
     });
+  const METRIC_HINTS = {
+    'Глубина фокуса': 'Доля времени в непрерывном фокусе без отвлечений',
+    'В работе': 'Доля времени в фокусе и разрешённых переходах круга',
+    'Разрывов': 'Количество уходов за пределы разрешённого круга',
+    'Переходов в круге': 'Количество переключений на разрешённые задачи',
+    'Длиннейший слой': 'Самый долгий непрерывный отрезок работы без разрывов',
+    'Потеряно': 'Суммарное время отсутствия вне круга',
+    'Дымка возвращения': 'Время восстановления концентрации после переключений',
+    'Индекс дробления': 'Мера раздробленности внимания от 0 (монолит) до 1',
+    'Свидетели': 'Проходил ли сеанс с подключением к залу присутствия'
+  };
   const rows = [
     ['Глубина фокуса', Math.round(m.depth * 100) + '%'],
     ['В работе', Math.round(m.work * 100) + '%'],
@@ -522,7 +783,11 @@ function finish(auto) {
     ['Свидетели', session.witnessed ? 'да' : 'нет']
   ];
   $('#lab-metrics').innerHTML = rows
-    .map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`)
+    .map(([k, v]) => {
+      const hint = METRIC_HINTS[k];
+      const titleAttr = hint ? ` title="${esc(hint)}"` : '';
+      return `<div><dt${titleAttr}>${k}</dt><dd>${v}</dd></div>`;
+    })
     .join('');
   $('#lab-read').textContent = archive.readingOf(m);
 }
@@ -550,9 +815,11 @@ function renderWall() {
     return;
   }
   peers.forEach((p) => {
+    const isStale = p.status === 'stale';
     const cell = document.createElement('div');
     cell.className = 'peer' + (p.id === ME ? ' is-me' : '') + (p.mode === 'drift' ? ' drift' : '');
-    const modeTxt = p.mode === 'drift' ? 'разрыв' : p.mode === 'done' ? 'керн' : 'фокус';
+    if (isStale) cell.dataset.status = 'stale';
+    const modeTxt = isStale ? 'замер' : (p.mode === 'drift' ? 'разрыв' : p.mode === 'done' ? 'керн' : 'фокус');
     cell.innerHTML = `<canvas></canvas>
       <p class="peer-name">${esc(p.id === ME ? p.name + ' · вы' : p.name)}</p>
       <p class="peer-state">${modeTxt} · ${Math.round(p.fill * 100)}%</p>`;
@@ -646,9 +913,11 @@ document.querySelectorAll('.pick').forEach((b) =>
     document.querySelectorAll('.pick').forEach((x) => x.classList.remove('is-on'));
     b.classList.add('is-on');
     capacityMin = +b.dataset.min;
+    buzz(8);
   })
 );
 $('#witness').addEventListener('change', (e) => {
+  buzz(8);
   wantWitness = e.target.checked;
   if (wantWitness && !presence.live) {
     e.target.checked = false;
@@ -670,17 +939,81 @@ $('#cf-yes').addEventListener('click', () => {
   finish(false);
 });
 $('#awake').addEventListener('change', (e) => {
+  buzz(8);
   cfg = store.setConfig({ awake: e.target.checked });
   if (session && !session.ended) holdScreen(e.target.checked);
 });
 $('#sound-vow').addEventListener('change', async (e) => {
+  buzz(8);
   $('#sound').setAttribute('aria-pressed', String(e.target.checked));
   cfg = store.setConfig({ sound: e.target.checked });
   amb.boot();
   await amb.enable(e.target.checked);
 });
+$('#notify').addEventListener('change', async (e) => {
+  buzz(8);
+  if (e.target.checked && native.isNative) {
+    if (await native.enableReminders()) {
+      cfg = store.setConfig({ notify: true });
+      toast('Напомним, когда время выйдет.');
+      if (session && !session.ended) sendPushSubscribe();
+    } else {
+      e.target.checked = false;
+      toast('Уведомления не разрешены в настройках Android.');
+    }
+    return;
+  }
+  if (e.target.checked) {
+    const hasSupport =
+      'Notification' in window &&
+      'serviceWorker' in navigator &&
+      'PushManager' in window;
+    if (!hasSupport) {
+      e.target.checked = false;
+      const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+      const isStandalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+      if (isIos && !isStandalone) {
+        toast('На iPhone уведомления работают, когда приложение добавлено на экран «Домой».');
+      } else {
+        toast('Уведомления в этом браузере недоступны.');
+      }
+      return;
+    }
+    try {
+      const perm = await Notification.requestPermission();
+      if (perm !== 'granted') {
+        e.target.checked = false;
+        toast('Уведомления не разрешены в браузере.');
+        return;
+      }
+      const registration = await navigator.serviceWorker.ready;
+      let sub = await registration.pushManager.getSubscription();
+      if (!sub) {
+        const res = await fetch('/push/key');
+        if (!res.ok) throw new Error('key fetch failed');
+        const data = await res.json();
+        if (!data?.key) throw new Error('no key');
+        sub = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(data.key)
+        });
+      }
+      if (sub?.endpoint) currentPushEndpoint = sub.endpoint;
+      cfg = store.setConfig({ notify: true });
+      toast('Напомним, когда время выйдет.');
+      if (session && !session.ended) sendPushSubscribe();
+    } catch {
+      e.target.checked = false;
+      toast('Не получилось включить напоминание.');
+    }
+  } else {
+    cfg = store.setConfig({ notify: false });
+    if (session && !session.ended) sendPushCancel();
+  }
+});
 $('#again').addEventListener('click', () => {
   amb.leave();
+  stage.stop();
   go('ritual');
 });
 $('#to-archive').addEventListener('click', () => go('archive'));
@@ -711,10 +1044,54 @@ $('#arc-body').addEventListener('click', (e) => {
   listenTo(core, b, 'Послушать');
 });
 
-$('#png').addEventListener('click', () => lastCore && archive.exportPNG(lastCore, lastIndex));
+$('#png').addEventListener('click', async () => {
+  if (!lastCore) return;
+  const fileName = `kern-${String(lastIndex).padStart(3, '0')}.png`;
+  if (typeof navigator !== 'undefined' && navigator.canShare) {
+    try {
+      const res = archive.exportPNG(lastCore, lastIndex, { raw: true });
+      let file = null;
+      if (res instanceof File) file = res;
+      else if (res instanceof Blob) file = new File([res], fileName, { type: 'image/png' });
+      else if (res instanceof Promise) {
+        const val = await res;
+        if (val instanceof File) file = val;
+        else if (val instanceof Blob) file = new File([val], fileName, { type: 'image/png' });
+        else if (val instanceof HTMLCanvasElement) {
+          const blob = await new Promise((r) => val.toBlob(r, 'image/png'));
+          if (blob) file = new File([blob], fileName, { type: 'image/png' });
+        }
+      } else if (res instanceof HTMLCanvasElement) {
+        const blob = await new Promise((r) => res.toBlob(r, 'image/png'));
+        if (blob) file = new File([blob], fileName, { type: 'image/png' });
+      }
+      if (file && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: 'Слои внимания' });
+        return;
+      }
+      if (res) return;
+    } catch (err) {
+      if (err && err.name === 'AbortError') return;
+    }
+  }
+  archive.exportPNG(lastCore, lastIndex);
+});
+
 $('#share').addEventListener('click', async () => {
   const link = shareLink(lastCore);
   if (!link) return;
+  if (navigator.share) {
+    try {
+      await navigator.share({
+        title: 'Слои внимания',
+        text: lastCore?.task ? `Керн «${lastCore.task}»` : 'Керн сеанса внимания',
+        url: link
+      });
+      return;
+    } catch (err) {
+      if (err && err.name === 'AbortError') return;
+    }
+  }
   try {
     await navigator.clipboard.writeText(link);
     toast('ссылка на керн скопирована');
@@ -724,6 +1101,7 @@ $('#share').addEventListener('click', async () => {
     toast('ссылка в поле обмена — скопируйте вручную');
   }
 });
+
 function sheet(open) {
   body.dataset.sheet = open ? '1' : '0';
   $('#journal-toggle').textContent = open ? 'Закрыть' : 'Журнал';
@@ -747,31 +1125,58 @@ document.querySelectorAll('.tab').forEach((t) =>
     renderArchive();
   })
 );
+
 $('#wipe').addEventListener('click', () => {
-  store.clearAll();
-  renderArchive();
-  toast('собрание очищено');
+  const btn = $('#wipe');
+  if (wipeTimer) {
+    clearTimeout(wipeTimer);
+    wipeTimer = null;
+    btn.textContent = 'Очистить';
+    store.clearAll();
+    renderArchive();
+    toast('Архив очищен');
+    return;
+  }
+  btn.textContent = 'Точно стереть? Нажмите ещё раз';
+  wipeTimer = setTimeout(() => {
+    wipeTimer = null;
+    btn.textContent = 'Очистить';
+  }, 4000);
 });
+
 $('#join').addEventListener('click', async () => {
+  const btn = $('#join');
   if (presence.joined) {
     presence.leave();
-    $('#join').textContent = 'Войти';
+    btn.textContent = 'Войти';
+    btn.disabled = false;
     renderWall();
     updateBadge();
+    updateNetStatus();
     return;
   }
-  if (!presence.live && !(await presence.probe())) {
-    toast('зал не отвечает');
+  btn.disabled = true;
+  btn.textContent = 'проверяю…';
+  let ok = presence.live;
+  if (!ok) {
+    ok = await presence.probe();
+  }
+  if (!ok) {
+    btn.disabled = false;
+    btn.textContent = 'Войти';
+    toast('Зал сейчас недоступен — сеанс пойдёт наедине.');
     return;
   }
+  btn.disabled = false;
   presence.join(cfg.room, ME, {
     name: cfg.name,
     fill: session ? Math.min(1, elapsed(session) / session.capacityMs) : 0,
     mode: session && !session.ended ? (focused ? 'focus' : 'drift') : 'done',
     strata: session ? session.layers.length : 1
   });
-  $('#join').textContent = 'Выйти';
+  btn.textContent = 'Выйти';
   updateBadge();
+  updateNetStatus();
 });
 $('#ex-add').addEventListener('click', () => {
   if (takeGuest($('#ex-in').value)) {
@@ -801,7 +1206,19 @@ window.addEventListener('focus', () => setFocused(true));
 document.addEventListener('visibilitychange', () => {
   setFocused(!document.hidden && document.hasFocus());
   amb.duck(document.hidden);
-  if (!document.hidden && wantAwake && session && !session.ended) holdScreen(true);
+  if (!document.hidden) {
+    if (wantAwake && session && !session.ended) holdScreen(true);
+    if (presence.joined) presence.reconnectNow();
+  }
+});
+window.addEventListener('online', () => {
+  syncOfflineBanner();
+  if (presence.joined) presence.reconnectNow();
+  updateNetStatus();
+});
+window.addEventListener('offline', () => {
+  syncOfflineBanner();
+  updateNetStatus('offline');
 });
 window.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
@@ -810,7 +1227,6 @@ window.addEventListener('keydown', (e) => {
   else if (body.dataset.sheet === '1') sheet(false);
 });
 window.addEventListener('beforeunload', (e) => {
-  presence.leave();
   if (session && !session.ended) {
     e.preventDefault();
     e.returnValue = '';
@@ -821,11 +1237,75 @@ window.addEventListener('pointermove', (e) => {
   body.style.setProperty('--my', e.clientY + 'px');
 });
 
+const rightRail = document.querySelector('.rail--right');
+let touchStartY = 0;
+let touchStartX = 0;
+let isSwipingSheet = false;
+
+if (rightRail) {
+  rightRail.addEventListener('touchstart', (e) => {
+    if (body.dataset.sheet !== '1' || e.touches.length !== 1) return;
+    if (rightRail.scrollTop > 0) return;
+    touchStartY = e.touches[0].clientY;
+    touchStartX = e.touches[0].clientX;
+    isSwipingSheet = false;
+  }, { passive: true });
+
+  rightRail.addEventListener('touchmove', (e) => {
+    if (body.dataset.sheet !== '1' || touchStartY === 0 || e.touches.length !== 1) return;
+    if (rightRail.scrollTop > 0) {
+      if (isSwipingSheet) {
+        rightRail.style.transform = '';
+        rightRail.style.transition = '';
+        isSwipingSheet = false;
+      }
+      return;
+    }
+    const dy = e.touches[0].clientY - touchStartY;
+    const dx = Math.abs(e.touches[0].clientX - touchStartX);
+    if (dy > 8 && dy > dx) {
+      isSwipingSheet = true;
+      rightRail.style.transition = 'none';
+      rightRail.style.transform = `translateY(${Math.max(0, dy)}px)`;
+    }
+  }, { passive: true });
+
+  const endSwipe = (e) => {
+    if (!isSwipingSheet) return;
+    isSwipingSheet = false;
+    const dy = (e.changedTouches && e.changedTouches[0]) ? (e.changedTouches[0].clientY - touchStartY) : 0;
+    rightRail.style.transition = 'transform 0.3s var(--ease)';
+    if (dy >= 60) {
+      rightRail.style.transform = 'translateY(100%)';
+      setTimeout(() => {
+        sheet(false);
+        rightRail.style.transform = '';
+        rightRail.style.transition = '';
+      }, 300);
+    } else {
+      rightRail.style.transform = '';
+      setTimeout(() => {
+        rightRail.style.transition = '';
+      }, 300);
+    }
+    touchStartY = 0;
+  };
+
+  rightRail.addEventListener('touchend', endSwipe, { passive: true });
+  rightRail.addEventListener('touchcancel', endSwipe, { passive: true });
+}
+
 const standalone =
   matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 let installPrompt = null;
 
 if ('serviceWorker' in navigator) {
+  const hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener('message', (e) => {
+    if (e.data && e.data.type === 'updated' && hadController) {
+      toast('Доступна новая версия — перезапустите приложение.', 6000);
+    }
+  });
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   });
@@ -872,14 +1352,43 @@ if (cfg.lastMin) {
 $('#awake').checked = cfg.awake !== false;
 $('#sound-vow').checked = !!cfg.sound;
 $('#sound').setAttribute('aria-pressed', String(!!cfg.sound));
+if (cfg.notify && !native.isNative) {
+  const hasSupport =
+    'Notification' in window &&
+    'serviceWorker' in navigator &&
+    'PushManager' in window;
+  if (!hasSupport || Notification.permission !== 'granted') {
+    cfg = store.setConfig({ notify: false });
+  }
+}
+const notifyEl = $('#notify');
+if (notifyEl) notifyEl.checked = !!cfg.notify;
 renderOath();
 const resumed = resume();
 
+function openTarget(target) {
+  if (target === 'stage') go(session ? 'stage' : 'ritual');
+  else if (['ritual', 'archive', 'room', 'method'].includes(target)) go(target);
+}
+
 const wanted = new URLSearchParams(location.search).get('go');
-if (wanted && ['ritual', 'archive', 'room', 'method'].includes(wanted)) {
-  go(wanted);
+if (wanted) {
+  openTarget(wanted);
   history.replaceState(null, '', location.pathname);
 }
+native.onOpen(openTarget);
+if (native.isNative) $('#android-link')?.remove();
+{
+  const pin = $('#pin-widget');
+  if (pin && native.isNative) {
+    pin.style.display = '';
+    pin.addEventListener('click', async () => {
+      const ok = await native.pinWidget();
+      if (!ok) toast('Добавьте виджет вручную: долгое нажатие на экране → Виджеты → Слои внимания.', 5000);
+    });
+  }
+}
+widgetSync();
 
 if (location.hash.startsWith('#s=')) {
   const ok = takeGuest(location.hash.slice(3));
@@ -890,10 +1399,24 @@ if (location.hash.startsWith('#s=')) {
   }
 }
 
+function setRoomTab(tab) {
+  body.dataset.roomtab = tab;
+  document.querySelectorAll('[data-roomtab]').forEach((b) => {
+    const sel = b.dataset.roomtab === tab;
+    b.setAttribute('aria-selected', String(sel));
+  });
+}
+document.querySelectorAll('[data-roomtab]').forEach((b) => {
+  b.addEventListener('click', () => {
+    setRoomTab(b.dataset.roomtab);
+  });
+});
+setRoomTab('presence');
+syncOfflineBanner();
+updateNetStatus();
+
 presence.probe().then((live) => {
-  const el = $('#net-state');
-  el.textContent = live ? 'зал доступен · вы не вошли' : 'локальный режим · сервер не запущен';
-  el.classList.toggle('is-live', false);
+  updateNetStatus(live ? 'offline' : 'offline');
   $('#witness-note').textContent = live
     ? 'передаются имя, доля заполнения и состояние; готовый керн ложится в общее собрание'
     : 'сервер не запущен — сеанс будет одиноким';

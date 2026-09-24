@@ -32,7 +32,7 @@ export function createSession(capacityMs, task) {
   };
 }
 
-export const elapsed = (s) => (s.ended ? s.endMs : performance.now() - s.t0);
+export const elapsed = (s) => (s.ended ? s.endMs : Math.max(0, Date.now() - s.startedAt));
 
 export function switchState(s, type, at) {
   const cur = s.layers[s.layers.length - 1];

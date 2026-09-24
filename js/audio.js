@@ -308,14 +308,24 @@ export class Ambience {
     env.gain.linearRampToValueAtTime((0.5 + Math.random() * 0.5) * boost, when + 0.004);
     env.gain.exponentialRampToValueAtTime(0.0005, when + dur);
     let tail = env;
+    let panner = null;
     if (ctx.createStereoPanner) {
       const p = ctx.createStereoPanner();
       p.pan.value = (Math.random() - 0.5) * 1.1;
       env.connect(p);
       tail = p;
+      panner = p;
     }
     tail.connect(this.grainBus);
     src.connect(f).connect(env);
+    src.onended = () => {
+      try {
+        src.disconnect();
+        f.disconnect();
+        env.disconnect();
+        if (panner) panner.disconnect();
+      } catch {}
+    };
     src.start(when, Math.random() * 0.3, dur + 0.02);
     src.stop(when + dur + 0.05);
   }
@@ -413,6 +423,7 @@ export class Ambience {
     out.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     out.connect(this.air || this.master);
     const parts = soft ? [1, 2, 3] : [1, 2.76, 5.4];
+    let count = 0;
     parts.forEach((r, i) => {
       const o = ctx.createOscillator();
       o.type = 'sine';
@@ -420,6 +431,18 @@ export class Ambience {
       const g = ctx.createGain();
       g.gain.value = i === 0 ? 1 : (soft ? 0.16 : 0.28) / i;
       o.connect(g).connect(out);
+      o.onended = () => {
+        try {
+          o.disconnect();
+          g.disconnect();
+        } catch {}
+        count++;
+        if (count >= parts.length) {
+          try {
+            out.disconnect();
+          } catch {}
+        }
+      };
       o.start(t);
       o.stop(t + dur + 0.1);
     });
@@ -436,6 +459,12 @@ export class Ambience {
     g.gain.linearRampToValueAtTime(vol, ctx.currentTime + 0.02);
     g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + dur);
     o.connect(g).connect(this.master);
+    o.onended = () => {
+      try {
+        o.disconnect();
+        g.disconnect();
+      } catch {}
+    };
     o.start();
     o.stop(ctx.currentTime + dur + 0.1);
   }
@@ -451,6 +480,12 @@ export class Ambience {
     g.gain.setValueAtTime(0.12, ctx.currentTime);
     g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 1.3);
     o.connect(g).connect(this.master);
+    o.onended = () => {
+      try {
+        o.disconnect();
+        g.disconnect();
+      } catch {}
+    };
     o.start();
     o.stop(ctx.currentTime + 1.4);
   }
@@ -477,6 +512,12 @@ export class Ambience {
     tg.gain.linearRampToValueAtTime(0.028, ctx.currentTime + 1.6);
     tg.gain.setTargetAtTime(0, ctx.currentTime + 4, 1.8);
     third.connect(tg).connect(this.air);
+    third.onended = () => {
+      try {
+        third.disconnect();
+        tg.disconnect();
+      } catch {}
+    };
     third.start();
     third.stop(ctx.currentTime + 10);
 
@@ -542,6 +583,12 @@ export class Ambience {
         const vg = ctx.createGain();
         vg.gain.value = 1 / (i + 1.6);
         o.connect(vg).connect(g);
+        o.onended = () => {
+          try {
+            o.disconnect();
+            vg.disconnect();
+          } catch {}
+        };
         o.start(at);
         o.stop(at + dur + 0.12);
         nodes.push(o);
@@ -563,6 +610,7 @@ export class Ambience {
       } catch {}
     };
     const timer = setTimeout(() => {
+      stop();
       this.playing = null;
       onDone && onDone();
     }, (span + 4.6) * 1000);

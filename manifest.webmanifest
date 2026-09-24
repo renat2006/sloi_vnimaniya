@@ -4,9 +4,11 @@
   "description": "Интерактивный перформанс о стратиграфии внимания: колба наполняется, пока вы держите фокус.",
   "lang": "ru",
   "dir": "ltr",
+  "id": "./",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
+  "prefer_related_applications": false,
   "display_override": ["standalone", "minimal-ui"],
   "orientation": "portrait",
   "background_color": "#08090B",
@@ -19,6 +21,7 @@
   ],
   "shortcuts": [
     { "name": "Начать сеанс", "short_name": "Сеанс", "url": "./?go=ritual", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
-    { "name": "Архив кернов", "short_name": "Архив", "url": "./?go=archive", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
+    { "name": "Архив кернов", "short_name": "Архив", "url": "./?go=archive", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Зал", "short_name": "Зал", "url": "./?go=room", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
   ]
 }

@@ -29,10 +29,20 @@ export class Stage {
     this.W = 0;
     this.H = 0;
     this.dpr = 1;
-    this.reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    this.mqlLite = window.matchMedia ? window.matchMedia('(max-width: 980px), (pointer: coarse)') : null;
+    this.mqlReduced = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+    this.lite = this.mqlLite ? this.mqlLite.matches : false;
+    this.reduced = this.mqlReduced ? this.mqlReduced.matches : false;
+    const onMediaChange = () => this.updateMedia();
+    if (this.mqlLite?.addEventListener) this.mqlLite.addEventListener('change', onMediaChange);
+    else if (this.mqlLite?.addListener) this.mqlLite.addListener(onMediaChange);
+    if (this.mqlReduced?.addEventListener) this.mqlReduced.addEventListener('change', onMediaChange);
+    else if (this.mqlReduced?.addListener) this.mqlReduced.addListener(onMediaChange);
     this.last = performance.now();
     this.raf = null;
-    new ResizeObserver(() => this.resize()).observe(canvas.parentElement);
+    if (canvas.parentElement) {
+      new ResizeObserver(() => this.resize()).observe(canvas.parentElement);
+    }
     this.resize();
     canvas.addEventListener('pointermove', (e) => {
       const r = canvas.getBoundingClientRect();
@@ -46,8 +56,15 @@ export class Stage {
     });
   }
 
+  updateMedia() {
+    if (this.mqlLite) this.lite = this.mqlLite.matches;
+    if (this.mqlReduced) this.reduced = this.mqlReduced.matches;
+  }
+
   resize() {
+    this.updateMedia();
     const box = this.cv.parentElement;
+    if (!box) return;
     this.dpr = Math.min(2, window.devicePixelRatio || 1);
     this.W = Math.max(200, box.clientWidth);
     this.H = Math.max(200, box.clientHeight);
@@ -83,16 +100,26 @@ export class Stage {
 
   run() {
     if (this.raf) return;
+    if (!this.cv || !this.cv.isConnected) return;
     const loop = (ts) => {
-      this.raf = requestAnimationFrame(loop);
+      if (!this.raf) return;
+      if (!this.cv || !this.cv.isConnected) {
+        this.stop();
+        return;
+      }
       this.frame(ts);
+      if (this.raf) {
+        this.raf = requestAnimationFrame(loop);
+      }
     };
     this.raf = requestAnimationFrame(loop);
   }
 
   stop() {
-    cancelAnimationFrame(this.raf);
-    this.raf = null;
+    if (this.raf) {
+      cancelAnimationFrame(this.raf);
+      this.raf = null;
+    }
   }
 
   geom() {
@@ -109,6 +136,10 @@ export class Stage {
   }
 
   frame(ts) {
+    if (!this.cv || !this.cv.isConnected) {
+      this.stop();
+      return;
+    }
     const dt = Math.min(60, ts - this.last);
     this.last = ts;
     const s = this.session;
@@ -140,7 +171,7 @@ export class Stage {
 
     this.room(ctx, g, floor, fill);
     this.air(ctx, dt, g, floor);
-    if (this.morph < 0.6) this.reflect(ctx, g, layers, cap, floor, surfY, fill);
+    if (this.morph < 0.6 && !this.lite) this.reflect(ctx, g, layers, cap, floor, surfY, fill);
 
     this.shadow(ctx, g, floor, fill);
     this.aura(ctx, g, fill, surfY);
@@ -180,7 +211,7 @@ export class Stage {
     cone.addColorStop(0.55, rgba(tone, 0.026 * (1 - cold * 0.45)));
     cone.addColorStop(1, rgba(tone, 0));
     ctx.fillStyle = cone;
-    if (!this.reduced) ctx.filter = 'blur(16px)';
+    if (!this.reduced && !this.lite) ctx.filter = 'blur(16px)';
     ctx.beginPath();
     ctx.moveTo(g.cx - g.R * 0.42, -30);
     ctx.lineTo(g.cx + g.R * 0.42, -30);
@@ -215,7 +246,7 @@ export class Stage {
 
   air(ctx, dt, g, floor) {
     if (this.reduced) return;
-    const want = 44;
+    const want = this.lite ? 18 : 44;
     while (this.airs.length < want) {
       this.airs.push({
         x: g.cx + (Math.random() - 0.5) * g.R * 5,
@@ -453,9 +484,10 @@ export class Stage {
 
   emit(dt, g, surfY) {
     if (this.reduced) return;
+    const maxParts = this.lite ? 100 : 220;
     const base = this.drift ? 0.006 : 0.003;
     let n = (base + Math.min(0.42, this.rate * 0.007)) * dt;
-    if (this.parts.length > 220) n = 0;
+    if (this.parts.length >= maxParts) n = 0;
     while (n > 0) {
       if (Math.random() < Math.min(1, n)) {
         const nw = wAt(g, 1) * g.R * 0.62;
@@ -508,14 +540,16 @@ export class Stage {
     ctx.save();
     vesselPath(ctx, g, 1);
     ctx.clip();
-    for (let i = this.parts.length - 1; i >= 0; i--) {
-      const p = this.parts[i];
+    let w = 0;
+    const parts = this.parts;
+    const partsLen = parts.length;
+    for (let i = 0; i < partsLen; i++) {
+      const p = parts[i];
       p.vy += 0.045 * k;
       p.x += p.vx * k;
       p.y += p.vy * k;
       const land = surfY - 1;
       if (p.y >= land || this.morph > 0) {
-        this.parts.splice(i, 1);
         if (p.y >= land) {
           this.flashes.push({ x: p.x, y: land, life: 1, cold: p.cold });
           this.hooks.onLand && this.hooks.onLand(p.cold);
@@ -535,35 +569,43 @@ export class Stage {
       }
       ctx.fillStyle = p.cold ? rgba(PAL.driftEdge, 0.66) : rgba(PAL.focusLite, 0.6);
       ctx.fillRect(p.x, p.y, p.s, p.s * 2.8);
+      parts[w++] = p;
     }
-    for (let i = this.flashes.length - 1; i >= 0; i--) {
-      const f = this.flashes[i];
+    parts.length = w;
+
+    w = 0;
+    const flashes = this.flashes;
+    const flashesLen = flashes.length;
+    for (let i = 0; i < flashesLen; i++) {
+      const f = flashes[i];
       f.life -= 0.055 * k;
-      if (f.life <= 0) {
-        this.flashes.splice(i, 1);
-        continue;
-      }
+      if (f.life <= 0) continue;
       const r = 3 + (1 - f.life) * 9;
       const gr = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, r);
       gr.addColorStop(0, rgba(f.cold ? PAL.driftEdge : PAL.focusLite, 0.3 * f.life));
       gr.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = gr;
       ctx.fillRect(f.x - r, f.y - r, r * 2, r * 2);
+      flashes[w++] = f;
     }
-    for (let i = this.motes.length - 1; i >= 0; i--) {
-      const m = this.motes[i];
+    flashes.length = w;
+
+    w = 0;
+    const motes = this.motes;
+    const motesLen = motes.length;
+    for (let i = 0; i < motesLen; i++) {
+      const m = motes[i];
       m.vy += 0.02 * k;
       m.x += m.vx * k;
       m.y += m.vy * k;
       m.life -= 0.012 * k;
-      if (m.life <= 0) {
-        this.motes.splice(i, 1);
-        continue;
-      }
+      if (m.life <= 0) continue;
       ctx.globalAlpha = Math.max(0, m.life) * 0.5;
       ctx.fillStyle = rgba(PAL.focusLite, 1);
       ctx.fillRect(m.x, m.y, m.s, m.s);
+      motes[w++] = m;
     }
+    motes.length = w;
     ctx.globalAlpha = 1;
     ctx.restore();
   }

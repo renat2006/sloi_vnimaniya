@@ -134,23 +134,23 @@ function mountCores(root, all) {
     const m = c.metrics || metricsOf(c.layers, c.durationMs);
     const el = document.createElement('article');
     el.className = 'card';
-    const tag = c.guest ? `гость · ${c.author}` : `Керн № ${String(total - i).padStart(3, '0')}`;
+    const tag = c.guest ? `гость · ${escape(c.author || '')}` : `Керн № ${String(total - i).padStart(3, '0')}`;
     el.innerHTML = `
       <canvas></canvas>
       <div class="card-info">
         <p class="card-idx">${tag}${c.witnessed ? ' · при свидетелях' : ''}</p>
-        <p class="card-title">${fmtShort(c.durationMs)}</p>
-        <p class="card-date">${dateLine(c.startedAt)}</p>
+        <p class="card-title">${fmtShort(Number(c.durationMs) || 0)}</p>
+        <p class="card-date">${dateLine(Number(c.startedAt) || Date.now())}</p>
         ${c.task ? `<p class="card-task">${escape(c.task)}</p>` : ''}
         <div class="card-rows">
-          <span>Глубина фокуса <b>${Math.round(m.depth * 100)}%</b></span>
-          <span>Разрывов <b>${m.breaks}</b></span>
-          <span>Переходов <b>${m.transitions || 0}</b></span>
-          <span>Дробление <b>${m.fragmentation.toFixed(2)}</b></span>
+          <span>Глубина фокуса <b>${Math.round((Number(m.depth) || 0) * 100)}%</b></span>
+          <span>Разрывов <b>${Math.round(Number(m.breaks) || 0)}</b></span>
+          <span>Переходов <b>${Math.round(Number(m.transitions) || 0)}</b></span>
+          <span>Дробление <b>${(Number(m.fragmentation) || 0).toFixed(2)}</b></span>
         </div>
         <div class="card-acts">
-          <button class="card-listen" data-listen="${c.id}">Послушать</button>
-          <button class="card-kill">${c.guest ? 'Вернуть' : 'Удалить'}</button>
+          <button type="button" class="card-listen" data-listen="${escape(c.id)}" aria-label="Послушать">Послушать</button>
+          <button type="button" class="card-kill" aria-label="${c.guest ? 'Вернуть' : 'Удалить'}">${c.guest ? 'Вернуть' : 'Удалить'}</button>
         </div>
       </div>`;
     grid.appendChild(el);
@@ -165,7 +165,13 @@ function mountCores(root, all) {
 }
 
 function escape(s) {
-  return String(s).replace(/[<>&]/g, (ch) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' })[ch]);
+  return String(s ?? '').replace(/[<>&"']/g, (ch) => ({
+    '<': '&lt;',
+    '>': '&gt;',
+    '&': '&amp;',
+    '"': '&quot;',
+    "'": '&#39;'
+  })[ch]);
 }
 
 function mountWeek(root, all) {
@@ -276,7 +282,9 @@ export function exportPNG(core, index) {
   const a = document.createElement('a');
   a.download = `kern-${String(index).padStart(3, '0')}.png`;
   a.href = cv.toDataURL('image/png');
-  a.click();
+  if (typeof a.click === 'function') {
+    a.click();
+  }
 }
 
 function wrapText(ctx, text, x, y, maxW, lh) {
