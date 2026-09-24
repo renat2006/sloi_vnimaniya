@@ -39,6 +39,12 @@ body {
   padding-bottom: env(safe-area-inset-bottom);
 }
 a { color: inherit; }
+.hero, .card, .versions, .vbody, .md, .verify, .features, ol.steps, .skel { grid-template-columns: minmax(0, 1fr); }
+.features { grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); }
+main, section, details.v, .vbody, .md, .card, .verify, .code { min-width: 0; }
+body { overflow-wrap: break-word; }
+.md, .md a, .md p, .md li { overflow-wrap: anywhere; }
+html, body { overflow-x: hidden; }
 .wrap { max-width: 1040px; margin: 0 auto; padding: 0 max(20px, env(safe-area-inset-left)) 0 max(20px, env(safe-area-inset-right)); }
 
 .top { display: flex; align-items: center; justify-content: space-between; padding: max(18px, env(safe-area-inset-top)) 0 18px; gap: 16px; }
@@ -98,16 +104,17 @@ h2 small { display: block; font: 400 11px/1 var(--mono); letter-spacing: 0.24em;
 .feat p { font-size: 13px; color: var(--dim); }
 
 ol.steps { list-style: none; counter-reset: s; display: grid; gap: 14px; max-width: 640px; }
-ol.steps li { counter-increment: s; display: grid; grid-template-columns: 36px 1fr; gap: 6px; font-size: 14px; color: var(--dim); }
+ol.steps li { counter-increment: s; display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 6px; font-size: 14px; color: var(--dim); }
 ol.steps li::before { content: counter(s, decimal-leading-zero); font-size: 11px; letter-spacing: 0.18em; color: var(--warm); padding-top: 4px; }
 ol.steps b { color: var(--bone); font-weight: 400; }
 
 .versions { display: grid; gap: 10px; }
 details.v { border: 1px solid var(--line); }
-details.v > summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: 1fr auto; gap: 8px 16px; align-items: center; padding: 16px 18px; min-height: 56px; }
+details.v > summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 16px; align-items: center; padding: 16px 18px; min-height: 56px; }
 details.v > summary::-webkit-details-marker { display: none; }
 details.v > summary:hover { background: rgba(232, 226, 214, 0.03); }
 .vt { font: 400 22px/1.2 var(--serif); display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.vt .pill { font: 400 10.5px/1.4 var(--mono); text-transform: uppercase; }
 .vd { font-size: 11px; letter-spacing: 0.1em; color: var(--dim2); }
 .vbody { padding: 4px 18px 20px; display: grid; gap: 14px; border-top: 1px solid var(--line); }
 .acts { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 14px; }
