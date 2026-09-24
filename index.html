@@ -33,7 +33,7 @@
     <button data-go="room" class="lnk">Зал<span class="live-dot" id="live-dot"></span></button>
     <button data-go="archive" class="lnk">Архив</button>
   </nav>
-  <button id="sound" class="lnk sound" aria-pressed="false"><span class="eq"><i></i><i></i><i></i></span><span class="txt">Звук</span></button>
+  <button id="sound" class="lnk sound" aria-pressed="false" aria-haspopup="dialog" aria-label="Звук"><span class="eq"><i></i><i></i><i></i></span><span class="txt" id="sound-txt">Звук</span></button>
 </header>
 <div class="offline-banner" id="offline-banner" role="status" hidden>Нет сети — сеанс идёт и сохраняется локально.</div>
 
@@ -102,7 +102,7 @@
           <ol class="refs ev">
             <li><b>Тишина — контроль.</b> Для чтения, новых тем и запоминания часто лучше любой музыки <i>(Cheah et al., 2022)</i>. <a href="https://journals.sagepub.com/doi/10.1177/20592043221134392" target="_blank" rel="noopener">источник</a> <em class="ev-t ev-t--hi">высокая как контроль</em></li>
             <li><b>Белый и розовый шум.</b> Мета-анализ 13 испытаний (335 человек с СДВГ или выраженными симптомами): небольшой плюс в лабораторных заданиях, g≈0,25; у людей без СДВГ эффект был отрицательным. Испытания короткие и без ослепления. <a href="https://www.frontiersin.org/journals/psychology/articles/10.3389/fpsyg.2025.1476928/full" target="_blank" rel="noopener">источник</a> <em class="ev-t ev-t--mid">умеренная</em></li>
-            <li><b>Спокойный инструментал («Поток»).</b> Результаты противоречивы: одним читать легче, другим труднее. <a href="https://pubmed.ncbi.nlm.nih.gov/37171837/" target="_blank" rel="noopener">обзор 2023</a> · <a href="https://pubmed.ncbi.nlm.nih.gov/32559672/" target="_blank" rel="noopener">эксперимент</a> <em class="ev-t ev-t--low">низкая–умеренная</em></li>
+            <li><b>Инструментал («Поток», «Глубина», «Свет»).</b> Собирается на лету из медленных аккордов и редких нот, без слов и без повторов. Результаты исследований противоречивы: одним читать легче, другим труднее. <a href="https://pubmed.ncbi.nlm.nih.gov/37171837/" target="_blank" rel="noopener">обзор 2023</a> · <a href="https://pubmed.ncbi.nlm.nih.gov/32559672/" target="_blank" rel="noopener">эксперимент</a> <em class="ev-t ev-t--low">низкая–умеренная</em></li>
             <li><b>Чего здесь нет.</b> Песен со словами (мешают чтению), бинауральных ритмов (пользы не показано) и коричневого шума (испытаний не найдено). Режим с модуляцией 16 Гц пока экспериментальный и не включён. <a href="https://pubmed.ncbi.nlm.nih.gov/39443657/" target="_blank" rel="noopener">исследование 16 Гц</a> <em class="ev-t ev-t--low">предварительная</em></li>
             <li><b>Слух.</b> Безопасное прослушивание (рекомендации ВОЗ) — умеренная громкость и паузы. Фон здесь тихий, с ограничителем пиков, а через час звука приложение напоминает дать ушам отдых.</li>
           </ol>
@@ -121,75 +121,79 @@
 
   <section class="view view--ritual" id="view-ritual">
     <div class="ritual">
-      <p class="overline">Зал 1 · обет</p>
-      <h2 class="ritual-h">Перед тем как начать</h2>
+      <p class="overline">Новый сеанс</p>
+      <h2 class="ritual-h">Над чем работаете?</h2>
 
       <div class="vow">
         <label class="field">
-          <span class="lbl">Над чем работаете</span>
-          <input id="task" maxlength="70" placeholder="глава 2 · разбор данных · эскизы" autocomplete="off">
+          <input id="task" maxlength="70" placeholder="глава 2 · разбор данных · эскизы" autocomplete="off" aria-label="Над чем работаете">
         </label>
 
-        <div class="field">
-          <span class="lbl">Круг разрешённого <i>— туда можно уходить без разрыва</i></span>
-          <div class="chips" id="circle"></div>
-          <div class="chip-add">
-            <input id="chip-new" maxlength="24" placeholder="добавить: Figma, словарь, бумага" autocomplete="off">
-            <button class="ghost" id="chip-go">+</button>
-          </div>
-        </div>
-
-        <p class="oath" id="oath"></p>
-
-        <details class="fold" id="more-settings">
-          <summary>Настройки сеанса</summary>
-          <div class="field">
-            <span class="lbl">Звуковой фон <i>— у каждого свой; сравнивайте на своих сеансах</i></span>
-            <div class="chips seg" id="snd" role="radiogroup" aria-label="Звуковой фон">
-              <button type="button" class="chip" role="radio" data-snd="off">Тишина</button>
-              <button type="button" class="chip" role="radio" data-snd="flow">Поток</button>
-              <button type="button" class="chip" role="radio" data-snd="pink">Розовый шум</button>
-              <button type="button" class="chip" role="radio" data-snd="white">Белый шум</button>
-            </div>
-            <p class="side-note" id="snd-note"></p>
-          </div>
-
-          <div class="field switches">
-            <label class="switch">
-              <input type="checkbox" id="awake" checked>
-              <span class="sw-box"></span>
-              <span class="sw-txt">Держать экран<i>иначе сон экрана считается разрывом</i></span>
-            </label>
-
-            <label class="switch">
-              <input type="checkbox" id="witness">
-              <span class="sw-box"></span>
-              <span class="sw-txt">Войти в зал присутствия<i id="witness-note">видны имя, заполнение и состояние</i></span>
-            </label>
-
-            <label class="switch">
-              <input type="checkbox" id="notify">
-              <span class="sw-box"></span>
-              <span class="sw-txt">Напомнить по окончании<i>придёт одно уведомление, когда время выйдет</i></span>
-            </label>
-
-            <button type="button" class="ghost" id="pin-widget" style="display:none">Добавить виджет на экран</button>
-            <button type="button" class="ghost" id="add-tile" style="display:none">Плитка в быстрых настройках</button>
-            <button type="button" class="ghost" id="check-update" style="display:none">Проверить обновления</button>
-          </div>
-          <p class="side-note rule">Если вы вернётесь позже чем через 8 секунд, приложение спросит, где вы были.</p>
-        </details>
+        <ul class="opts">
+          <li>
+            <button type="button" class="opt" id="opt-snd">
+              <span class="opt-k">Звук</span>
+              <span class="opt-v" id="opt-snd-v">Поток</span>
+              <i aria-hidden="true">›</i>
+            </button>
+          </li>
+          <li>
+            <details class="opt-fold" id="circle-fold">
+              <summary>
+                <span class="opt-k">Куда можно уходить</span>
+                <span class="opt-v" id="circle-sum"></span>
+                <i aria-hidden="true">›</i>
+              </summary>
+              <div class="opt-body">
+                <div class="chips" id="circle"></div>
+                <div class="chip-add">
+                  <input id="chip-new" maxlength="24" placeholder="добавить: Figma, словарь, бумага" autocomplete="off">
+                  <button class="ghost" id="chip-go" aria-label="Добавить">+</button>
+                </div>
+                <p class="side-note">Всё остальное дольше 8 секунд — разрыв.</p>
+              </div>
+            </details>
+          </li>
+          <li>
+            <details class="opt-fold" id="more-settings">
+              <summary>
+                <span class="opt-k">Ещё</span>
+                <span class="opt-v">экран · уведомление · зал</span>
+                <i aria-hidden="true">›</i>
+              </summary>
+              <div class="opt-body switches">
+                <label class="switch">
+                  <input type="checkbox" id="awake" checked>
+                  <span class="sw-box"></span>
+                  <span class="sw-txt">Экран не гаснет<i>сон экрана считается разрывом</i></span>
+                </label>
+                <label class="switch">
+                  <input type="checkbox" id="notify">
+                  <span class="sw-box"></span>
+                  <span class="sw-txt">Сигнал в конце</span>
+                </label>
+                <label class="switch">
+                  <input type="checkbox" id="witness">
+                  <span class="sw-box"></span>
+                  <span class="sw-txt">Войти в зал<i id="witness-note">видны имя и колба</i></span>
+                </label>
+                <button type="button" class="lnk" id="pin-widget" style="display:none">Виджет на экран</button>
+                <button type="button" class="lnk" id="add-tile" style="display:none">Плитка в быстрых настройках</button>
+                <button type="button" class="lnk" id="check-update" style="display:none">Проверить обновления</button>
+              </div>
+            </details>
+          </li>
+        </ul>
 
         <div class="ritual-go">
           <div class="picks" role="radiogroup" aria-label="Длительность сеанса">
-            <button class="pick" data-min="2">2</button>
+            <button class="pick" data-min="5">5</button>
             <button class="pick" data-min="15">15</button>
             <button class="pick is-on" data-min="25">25</button>
             <button class="pick" data-min="50">50</button>
-            <span class="picks-unit">минут<br>в колбе</span>
+            <span class="picks-unit">минут</span>
           </div>
-          <button class="cta" id="begin"><span>Начать сеанс</span><em></em></button>
-          <button class="lnk" id="five" title="Короткий сеанс без раздумий">только 5 минут</button>
+          <button class="cta" id="begin"><span>Начать</span><em></em></button>
           <button class="lnk" data-go="intro">назад</button>
         </div>
       </div>
@@ -213,6 +217,7 @@
     <div class="vessel-wrap">
       <canvas id="vessel"></canvas>
       <div class="tip" id="tip"></div>
+      <button class="snd-fab" id="snd-fab" aria-label="Звук" aria-haspopup="dialog"><span class="eq"><i></i><i></i><i></i></span></button>
       <div class="stage-badges">
         <span class="badge" id="awake-badge">экран не гаснет</span>
         <span class="badge" id="witness-badge"></span>
@@ -375,6 +380,42 @@
     <button type="button" class="lnk" id="update-later">Позже</button>
   </div>
 </aside>
+<div class="snd-back" id="snd-back" hidden></div>
+<section class="snd-pop" id="snd-pop" role="dialog" aria-label="Звук" hidden>
+  <header class="snd-head">
+    <p class="overline">Звук</p>
+    <button type="button" class="snd-x" id="snd-close" aria-label="Закрыть">×</button>
+  </header>
+  <div class="snd-groups" role="radiogroup" aria-label="Тип звука">
+    <button type="button" class="snd-g" role="radio" data-group="off">
+      <svg viewBox="0 0 32 20" aria-hidden="true"><path d="M3 10h26" stroke-dasharray="1.5 4"/></svg>
+      <b>Тишина</b>
+    </button>
+    <button type="button" class="snd-g" role="radio" data-group="music">
+      <svg viewBox="0 0 32 20" aria-hidden="true"><path d="M3 10c4-9 6-9 10 0s6 9 10 0 3-5 6-3"/></svg>
+      <b>Музыка</b>
+    </button>
+    <button type="button" class="snd-g" role="radio" data-group="noise">
+      <svg viewBox="0 0 32 20" aria-hidden="true"><path d="M4 4v12M9 6v8M14 7v6M19 9v3M24 10v2M29 10.5v1"/></svg>
+      <b>Шум</b>
+    </button>
+  </div>
+  <div class="snd-sub" id="snd-sub"></div>
+  <div class="snd-card">
+    <svg class="snd-fig" id="snd-fig" viewBox="0 0 120 48" aria-hidden="true"></svg>
+    <div>
+      <p class="snd-how" id="snd-how"></p>
+      <p class="snd-tag" id="snd-tag"></p>
+    </div>
+  </div>
+  <label class="snd-vol" id="snd-vol-w">
+    <span>тише</span>
+    <input type="range" id="snd-vol" min="15" max="100" value="70" aria-label="Громкость">
+    <span>громче</span>
+  </label>
+  <button type="button" class="lnk snd-more" data-go="method" id="snd-more">Что известно о звуке →</button>
+</section>
+
 <div class="toast" id="toast"></div>
 <script type="module" src="js/app.js"></script>
 </body>

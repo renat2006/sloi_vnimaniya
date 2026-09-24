@@ -1,17 +1,11 @@
+import { Composer, SCENES, makeReverb } from './music.js';
+
 const ROOT = 55;
-const CYCLE = 16;
 const BREATH = 0.1;
 
-const CHORDS = [
-  { name: 'открытый', upper: [3, 4, 6], colour: [4, 6, 8] },
-  { name: 'минорный', upper: [2.4, 3, 4.8], colour: [4.8, 6, 7.2] },
-  { name: 'подвешенный', upper: [8 / 3, 4, 16 / 3], colour: [16 / 3, 6, 8] },
-  { name: 'светлый', upper: [2.5, 3, 5], colour: [5, 6, 7.5] }
-];
-
 const NOISE = {
-  pink: { level: 0.5, tone: 12000 },
-  white: { level: 0.32, tone: 8500 }
+  pink: { level: 0.3, tone: 12000 },
+  white: { level: 0.2, tone: 8500 }
 };
 const NOISE_SECONDS = 16;
 const HEAR_FIRST = 3600;
@@ -69,6 +63,9 @@ export class Ambience {
     this.playing = null;
     this.timer = null;
     this.kind = 'flow';
+    this.vol = 0.7;
+    this.preview = false;
+    this.composer = null;
     this.noise = {};
     this.heard = 0;
     this.nextHear = HEAR_FIRST;
@@ -135,32 +132,6 @@ export class Ambience {
     sand.connect(flowOut);
     this.sand = sand;
 
-    const makeVoice = (ratio, type, level, pan) => {
-      const osc = ctx.createOscillator();
-      osc.type = type;
-      osc.frequency.value = ROOT * ratio;
-      const gain = ctx.createGain();
-      gain.gain.value = 0;
-      let tail = gain;
-      if (ctx.createStereoPanner) {
-        const p = ctx.createStereoPanner();
-        p.pan.value = pan;
-        gain.connect(p);
-        tail = p;
-      }
-      tail.connect(air);
-      osc.connect(gain);
-      osc.start();
-      return { osc, gain, level };
-    };
-
-    this.pedal = [makeVoice(1, 'triangle', 0.15, 0), makeVoice(1.5, 'sine', 0.075, -0.2)];
-    this.upper = [
-      makeVoice(3, 'sine', 0.05, -0.4),
-      makeVoice(4, 'sine', 0.04, 0.35),
-      makeVoice(6, 'sine', 0.026, 0.15)
-    ];
-
     const len = ctx.sampleRate * 3;
     const buf = ctx.createBuffer(1, len, ctx.sampleRate);
     const d = buf.getChannelData(0);
@@ -212,13 +183,11 @@ export class Ambience {
     grainBus.connect(sand);
     this.grainBus = grainBus;
 
-    this.nextChordAt = ctx.currentTime + 1.5;
-    this.nextNoteAt = ctx.currentTime + 7;
     this.timer = setInterval(() => this.tick(), 250);
 
     this.ready = true;
     this.setFill(this.fill);
-    this.applyChord(0, ctx.currentTime + 0.4);
+    this.ir = makeReverb(ctx);
     this.applyKind(true);
   }
 
@@ -229,11 +198,12 @@ export class Ambience {
       if (this.ctx && this.ctx.state === 'suspended') await this.ctx.resume();
     }
     if (!this.master) return;
-    this.ramp(this.master.gain, v ? 0.5 : 0, 1.6);
+    this.ramp(this.master.gain, v ? this.level : 0, 1.6);
+    this.applyKind();
   }
 
   setKind(kind) {
-    this.kind = kind === 'pink' || kind === 'white' ? kind : 'flow';
+    this.kind = kind === 'pink' || kind === 'white' || SCENES[kind] ? kind : 'flow';
     if (this.ready) this.applyKind();
   }
 
@@ -255,16 +225,55 @@ export class Ambience {
     return this.noise[kind];
   }
 
+  get level() {
+    return 0.71 * this.vol;
+  }
+
+  get sounding() {
+    return this.active || this.preview;
+  }
+
+  setPreview(v) {
+    this.preview = v;
+    if (v && !this.active) this.setFill(0.35);
+    if (v && this.on && this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+    this.applyKind();
+  }
+
+  setVolume(v) {
+    this.vol = Math.max(0.15, Math.min(1, v));
+    if (this.master && this.on && !document.hidden) this.ramp(this.master.gain, this.level, 0.25);
+  }
+
   applyKind(now = false) {
     if (!this.ready) return;
     const noisy = this.kind === 'pink' || this.kind === 'white';
     this.ramp(this.flowOut.gain, noisy ? 0 : 1, now ? 0.05 : 1.2);
     ['pink', 'white'].forEach((k) => {
-      const want = this.kind === k && this.active;
+      const want = this.kind === k && this.sounding && this.on;
       if (want) this.ensureNoise(k);
       const n = this.noise[k];
       if (n) this.ramp(n.gain.gain, want ? NOISE[k].level : 0, now ? 0.05 : 1.6);
     });
+    this.syncScene();
+  }
+
+  syncScene() {
+    if (!this.ready) return;
+    const want = this.on && this.sounding && SCENES[this.kind];
+    const cur = this.composer;
+    if (cur && (!want || cur.scene !== this.kind)) {
+      cur.stop(want ? 2.4 : 1.8);
+      this.composer = null;
+    }
+    if (want && !this.composer) {
+      const c = new Composer(this.ctx, this.music, this.ir, this.kind, { tonic: cur ? cur.tonic : undefined });
+      c.setFill(this.fill);
+      if (this._prev) c.mood = this._prev;
+      this.composer = c;
+      c.start(cur ? 2.6 : 3.5);
+      if (this._prev && this._prev !== 'focus') c.setMood(this._prev);
+    }
   }
 
   ramp(param, v, t = 0.4) {
@@ -281,29 +290,13 @@ export class Ambience {
     param.setTargetAtTime(v, this.ctx.currentTime, tau);
   }
 
-  applyChord(index, when) {
-    if (!this.ready) return;
-    const chord = CHORDS[index % CHORDS.length];
-    this.chord = chord;
-    this.upper.forEach((v, i) => {
-      const ratio = chord.upper[i];
-      v.osc.frequency.setTargetAtTime(ROOT * ratio, when, 2.2);
-    });
-  }
-
   enter() {
     this.boot();
     if (!this.ready) return;
     this.active = true;
     this.frozen = false;
     this._prev = null;
-    this._mel = 1;
-    this.step = 0;
-    clearTimeout(this._melTimer);
     clearTimeout(this._leaveTimer);
-    this.nextChordAt = this.ctx.currentTime + 1.2;
-    this.nextNoteAt = this.ctx.currentTime + 8;
-    this.applyChord(0, this.ctx.currentTime + 0.3);
     this.setFill(this.fill);
     if (Date.now() - this.leftAt > 600000) {
       this.heard = 0;
@@ -318,9 +311,7 @@ export class Ambience {
     this.leftAt = Date.now();
     this.rate = 0;
     this.applyKind();
-    clearTimeout(this._melTimer);
     clearTimeout(this._leaveTimer);
-    [...this.pedal, ...this.upper].forEach((v) => this.ramp(v.gain.gain, 0, 1.6));
     this.ramp(this.hiss.gain, 0, 1.2);
     this.ramp(this.bodyGain.gain, 0, 1.2);
     this.ramp(this.music.gain, 1, 0.5);
@@ -332,7 +323,7 @@ export class Ambience {
     if (hidden) {
       this._duckTimer = setTimeout(() => this.ramp(this.master.gain, 0, 2.2), 1400);
     } else {
-      this.ramp(this.master.gain, this.on ? 0.5 : 0, 0.7);
+      this.ramp(this.master.gain, this.on ? this.level : 0, 0.7);
     }
   }
 
@@ -351,7 +342,7 @@ export class Ambience {
   }
 
   tick() {
-    if (!this.ready || !this.on || !this.active) return;
+    if (!this.ready || !this.on || !this.sounding) return;
     const t = this.ctx.currentTime;
     if (this.ctx.state === 'running' && !document.hidden) {
       this.heard += 0.25;
@@ -360,14 +351,9 @@ export class Ambience {
         if (this.onHearing) this.onHearing(Math.round(this.heard / 60));
       }
     }
-    if (this.kind !== 'flow') return;
+    if (!SCENES[this.kind]) return;
+    if (this.composer) this.composer.tick();
     if (this.frozen) return;
-
-    if (t + 0.4 >= this.nextChordAt) {
-      this.step += 1;
-      this.applyChord(this.step, this.nextChordAt);
-      this.nextChordAt += CYCLE;
-    }
 
     if (this.rate > 0.03 && !this.frozenSand) {
       const per = Math.min(34, 7 + this.rate * 16);
@@ -379,20 +365,6 @@ export class Ambience {
       this.nextGrainAt = t + 0.1;
     }
 
-    if (t + 0.4 >= this.nextNoteAt) {
-      if (this.melodyGain > 0.01) this.note(this.nextNoteAt);
-      const density = 0.35 + this.fill * 0.5;
-      this.nextNoteAt += 3.2 + Math.random() * 7 * (1.35 - density);
-    }
-  }
-
-  note(when) {
-    const chord = this.chord || CHORDS[0];
-    const pool = chord.colour;
-    const oct = this.fill > 0.62 ? 2 : 1;
-    const ratio = pool[Math.floor(Math.random() * pool.length)] * oct;
-    const vol = 0.055 * this.melodyGain * (0.7 + Math.random() * 0.5);
-    this.bell(ROOT * ratio, 4.5 + Math.random() * 2.5, vol, when - this.ctx.currentTime, true);
   }
 
   resonance() {
@@ -445,23 +417,12 @@ export class Ambience {
 
   setFill(f) {
     this.fill = f;
+    if (this.composer) this.composer.setFill(f);
     if (!this.ready) return;
     this.res = this.resonance();
     if (!this.frozen) this.glide(this.bp.frequency, this.res, 4);
     this.glide(this.body.frequency, 150 + f * 260, 4);
     this.glide(this.bodyGain.gain, (1 - f * 0.55) * 0.09 * Math.min(1, this.rate * 2 + 0.25), 2);
-    const body = Math.min(1, 0.35 + f * 0.85);
-    this.pedal.forEach((v) => this.glide(v.gain.gain, v.level * body * this.swell, 1.4));
-    const steps = [0, 0.18, 0.5];
-    this.upper.forEach((v, i) => {
-      const room = Math.max(0, Math.min(1, (f - steps[i]) / 0.18));
-      this.glide(v.gain.gain, v.level * room * (this.frozen ? 0.6 : 1), 3);
-    });
-  }
-
-  get melodyGain() {
-    if (this.frozen) return 0;
-    return this._mel == null ? 1 : this._mel;
   }
 
   mode(kind) {
@@ -471,14 +432,8 @@ export class Ambience {
     const wasCold = this._prev === 'drift';
     this._prev = kind;
     this.frozen = cold;
-    this.swell = cold ? 1.85 : stone ? 1.25 : 1;
+    if (this.composer) this.composer.setMood(kind);
 
-    const spread = cold ? 44 : stone ? 18 : 0;
-    const tau = cold ? 1.2 : stone ? 5 : 20;
-    [...this.pedal, ...this.upper].forEach((v, i) => {
-      const dir = i % 2 ? -1 : 1;
-      this.glide(v.osc.detune, dir * spread * (1 + i * 0.1), tau);
-    });
     this.glide(this.air.frequency, cold ? 420 : stone ? 1300 : 2200, cold ? 1 : 7);
     this.glide(this.grainBus.gain, cold ? 0.55 : 0.34, 1.5);
     if (cold) {
@@ -491,31 +446,13 @@ export class Ambience {
     } else {
       this.ramp(this.bp.frequency, this.res, 1.5);
     }
-
-    clearTimeout(this._melTimer);
-    if (cold) {
-      this._mel = 0;
-    } else if (wasCold) {
-      this._mel = 0;
-      const back = stone ? 6000 : 22000;
-      this._melTimer = setTimeout(() => {
-        this._mel = 0.5;
-        this._melTimer = setTimeout(() => (this._mel = 1), back);
-      }, back * 0.55);
-      this.nextChordAt = this.ctx.currentTime + 2;
-      this.nextNoteAt = this.ctx.currentTime + back * 0.0009;
-    } else {
-      this._mel = 1;
-    }
     this.setFill(this.fill);
   }
 
   forgive() {
     if (!this.ready) return;
-    [...this.pedal, ...this.upper].forEach((v) => this.glide(v.osc.detune, 0, 4));
+    if (this.composer) this.composer.forgive();
     this.glide(this.air.frequency, 2200, 3);
-    clearTimeout(this._melTimer);
-    this._mel = 1;
   }
 
   pour(rate) {
@@ -607,40 +544,14 @@ export class Ambience {
     if (!this.ready) return;
     const ctx = this.ctx;
     this.frozen = true;
-    this.swell = 1;
-    clearTimeout(this._melTimer);
-    [...this.pedal, ...this.upper].forEach((v) => this.glide(v.osc.detune, 0, 0.8));
     this.glide(this.air.frequency, 3400, 1.5);
     this.glide(this.hiss.gain, 0, 1.2);
     this.glide(this.bodyGain.gain, 0, 1.2);
     this.glide(this.music.gain, 1, 1);
     this.rate = 0;
-    this.applyChord(0, ctx.currentTime + 0.1);
-
-    const third = ctx.createOscillator();
-    third.type = 'sine';
-    third.frequency.value = ROOT * 5;
-    const tg = ctx.createGain();
-    tg.gain.setValueAtTime(0, ctx.currentTime);
-    tg.gain.linearRampToValueAtTime(0.028, ctx.currentTime + 1.6);
-    tg.gain.setTargetAtTime(0, ctx.currentTime + 4, 1.8);
-    third.connect(tg).connect(this.air);
-    third.onended = () => {
-      try {
-        third.disconnect();
-        tg.disconnect();
-      } catch {}
-    };
-    third.start();
-    third.stop(ctx.currentTime + 10);
-
-    if (this.kind === 'flow') {
-      this.bell(ROOT * 4, 6, 0.1);
-      this.bell(ROOT * 6, 5, 0.045, 0.3);
-    } else {
-      this.ping(ROOT * 8, 3, 0.05);
-    }
-    this._leaveTimer = setTimeout(() => this.leave(), 6800);
+    if (this.composer) this.composer.settle();
+    else if (this.on) this.ping(ROOT * 8, 3, 0.05);
+    this._leaveTimer = setTimeout(() => this.leave(), 9000);
   }
 
   stopCore() {

@@ -1,4 +1,4 @@
-const VERSION = 'sloi-v3';
+const VERSION = 'sloi-v4';
 const SHELL = [
   './',
   './index.html',
@@ -12,6 +12,7 @@ const SHELL = [
   './js/store.js',
   './js/archive.js',
   './js/audio.js',
+  './js/music.js',
   './js/net.js',
   './js/config.js',
   './js/native.js',

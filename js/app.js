@@ -326,11 +326,8 @@ function addChip() {
 }
 
 function renderOath() {
-  const task = $('#task').value.trim() || 'начатое';
   const c = cfg.circle;
-  $('#oath').textContent =
-    `Если меня потянет отвлечься — я вернусь к: ${task}. ` +
-    (c.length ? `Круг: ${c.join(', ')}. Всё вне круга — разрыв.` : 'Круг пуст: любой уход — разрыв.');
+  $('#circle-sum').textContent = c.length ? c.slice(0, 2).join(', ') + (c.length > 2 ? ` +${c.length - 2}` : '') : 'никуда';
 }
 
 let currentPushEndpoint = null;
@@ -977,8 +974,6 @@ $('#witness').addEventListener('change', (e) => {
     toast('зал не отвечает');
   }
 });
-const e_pressed = (el) => el.getAttribute('aria-pressed') === 'true';
-
 function askFinish() {
   if (!session || session.ended) return;
   const fill = Math.min(1, elapsed(session) / session.capacityMs);
@@ -1020,36 +1015,95 @@ $('#awake').addEventListener('change', (e) => {
   cfg = store.setConfig({ awake: e.target.checked });
   if (session && !session.ended) holdScreen(e.target.checked);
 });
-const SND_NOTE = {
-  off: 'Без звука — ваш контроль для сравнения.',
-  flow: 'Тихий инструментальный фон и шорох песка. Без слов.',
-  pink: 'Мягкий ровный шум. Для части людей с СДВГ помогает, для других нет.',
-  white: 'Более яркий шум. Эффект малый и не у всех — сверяйтесь с архивом.'
+const SOUNDS = {
+  off: { group: 'off', name: 'Тишина', how: 'Без фона. Для чтения и новых тем часто лучше всего, а ещё это ваш контроль для сравнения.', tag: 'контроль' },
+  flow: { group: 'music', name: 'Поток', how: 'Медленные аккорды и редкие ноты, без слов. Каждый раз новая тональность. Растёт с колбой, на разрыве холодеет.', tag: 'приятный фон, не терапия' },
+  deep: { group: 'music', name: 'Глубина', how: 'Низкий тёмный фон, почти без мелодии. Для долгой ровной работы.', tag: 'приятный фон, не терапия' },
+  light: { group: 'music', name: 'Свет', how: 'Мягкие ноты над светлыми аккордами. Для рутины и когда скучно.', tag: 'приятный фон, не терапия' },
+  pink: { group: 'noise', name: 'Розовый', how: 'Ровный мягкий шум скрывает посторонние звуки. Изучен лучше остальных.', tag: 'малый эффект, не у всех' },
+  white: { group: 'noise', name: 'Белый', how: 'Ярче и плотнее розового. Для шумной обстановки.', tag: 'малый эффект, не у всех' }
 };
+const bars = (hs) => hs.map((h, i) => `<path d="M${10 + i * 11} ${44 - h}V44"/>`).join('');
+const wave = (y, a, ph = 0) => `<path d="M0 ${y}${Array.from({ length: 6 }, (_, i) => ` q10 ${(i % 2 ? a : -a) * 2} 20 0`).join('')}" transform="translate(${ph} 0)"/>`;
+const FIG = {
+  off: '<path d="M6 24h108" stroke-dasharray="1.5 5"/>',
+  flow: wave(30, 4) + wave(24, 7, -6) + wave(17, 10, -12) + '<circle cx="18" cy="40" r="1"/><circle cx="46" cy="42" r="1"/><circle cx="82" cy="39" r="1"/><circle cx="104" cy="42" r="1"/>',
+  deep: '<path d="M0 26q30 -20 60 0t60 0"/><path d="M0 36h120" stroke-dasharray="1 4"/>',
+  light: wave(28, 5) + '<circle cx="22" cy="12" r="2"/><circle cx="48" cy="18" r="2"/><circle cx="70" cy="9" r="2"/><circle cx="96" cy="15" r="2"/>',
+  pink: bars([38, 34, 30, 26, 23, 20, 17, 14, 12, 10]),
+  white: bars([26, 27, 26, 27, 26, 27, 26, 27, 26, 27])
+};
+const GROUP_DEFAULT = { off: 'off', music: 'flow', noise: 'pink' };
+const curKind = () => (cfg.sound ? cfg.soundKind || 'flow' : 'off');
+
 function renderSound() {
-  const kind = cfg.sound ? cfg.soundKind || 'flow' : 'off';
-  document.querySelectorAll('#snd [data-snd]').forEach((b) => {
-    const on = b.dataset.snd === kind;
+  const kind = curKind();
+  const meta = SOUNDS[kind] || SOUNDS.flow;
+  document.querySelectorAll('.snd-g').forEach((b) => {
+    const on = b.dataset.group === meta.group;
     b.classList.toggle('is-on', on);
     b.setAttribute('aria-checked', String(on));
   });
-  $('#snd-note').textContent = SND_NOTE[kind];
-  $('#sound').setAttribute('aria-pressed', String(cfg.sound));
+  const items = Object.entries(SOUNDS).filter(([k, v]) => v.group === meta.group && k !== 'off');
+  const sub = $('#snd-sub');
+  sub.hidden = !items.length;
+  sub.innerHTML = items
+    .map(([k, v]) => `<button type="button" class="chip${k === kind ? ' is-on' : ''}" data-snd="${k}">${v.name}</button>`)
+    .join('');
+  $('#snd-fig').innerHTML = FIG[kind] || '';
+  $('#snd-fig').dataset.kind = kind;
+  $('#snd-how').textContent = meta.how;
+  $('#snd-tag').textContent = meta.tag;
+  $('#snd-vol-w').hidden = kind === 'off';
+  $('#snd-vol').value = Math.round((cfg.vol || 70));
+  $('#opt-snd-v').textContent = meta.name;
+  $('#sound-txt').textContent = kind === 'off' ? 'Звук' : meta.name;
+  ['#sound', '#snd-fab'].forEach((id) => $(id).setAttribute('aria-pressed', String(cfg.sound)));
 }
 async function setSound(kind) {
   const on = kind !== 'off';
-  cfg = store.setConfig(on ? { sound: true, soundKind: kind } : { sound: false });
+  const meta = SOUNDS[kind];
+  cfg = store.setConfig(
+    on
+      ? { sound: true, soundKind: kind, [meta.group === 'music' ? 'lastMusic' : 'lastNoise']: kind }
+      : { sound: false }
+  );
   amb.setKind(cfg.soundKind || 'flow');
   amb.boot();
   await amb.enable(on);
   renderSound();
 }
-document.querySelectorAll('#snd [data-snd]').forEach((b) =>
+function sndOpen(v) {
+  const pop = $('#snd-pop');
+  if (v === !pop.hidden) return;
+  pop.hidden = !v;
+  $('#snd-back').hidden = !v;
+  body.classList.toggle('snd-open', v);
+  if (v) {
+    renderSound();
+    amb.boot();
+  }
+  amb.setPreview(v && !(session && !session.ended));
+}
+document.querySelectorAll('.snd-g').forEach((b) =>
   b.addEventListener('click', () => {
     buzz(8);
-    setSound(b.dataset.snd);
+    const g = b.dataset.group;
+    setSound(g === 'music' ? cfg.lastMusic || 'flow' : g === 'noise' ? cfg.lastNoise || 'pink' : 'off');
   })
 );
+$('#snd-sub').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-snd]');
+  if (!b) return;
+  buzz(8);
+  setSound(b.dataset.snd);
+});
+$('#snd-vol').addEventListener('input', (e) => amb.setVolume(+e.target.value / 100));
+$('#snd-vol').addEventListener('change', (e) => (cfg = store.setConfig({ vol: +e.target.value })));
+['#sound', '#snd-fab', '#opt-snd'].forEach((id) => $(id).addEventListener('click', () => sndOpen($('#snd-pop').hidden)));
+$('#snd-close').addEventListener('click', () => sndOpen(false));
+$('#snd-back').addEventListener('click', () => sndOpen(false));
+$('#snd-more').addEventListener('click', () => sndOpen(false));
 amb.onHearing = (min) =>
   toast(`Звук идёт уже ${min >= 60 ? 'больше часа' : min + ' мин'} — дайте ушам паузу`);
 $('#notify').addEventListener('change', async (e) => {
@@ -1218,10 +1272,6 @@ document.querySelectorAll('#ask-why [data-why]').forEach((b) =>
   })
 );
 $('#ask-skip').addEventListener('click', () => answer(null));
-$('#sound').addEventListener('click', () => {
-  const on = e_pressed($('#sound'));
-  setSound(on ? 'off' : cfg.soundKind || 'flow');
-});
 document.querySelectorAll('.tab').forEach((t) =>
   t.addEventListener('click', () => {
     document.querySelectorAll('.tab').forEach((x) => x.classList.remove('is-on'));
@@ -1327,7 +1377,8 @@ window.addEventListener('offline', () => {
 });
 window.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
-  if ($('#confirm').classList.contains('is-on')) $('#confirm').classList.remove('is-on');
+  if (!$('#snd-pop').hidden) sndOpen(false);
+  else if ($('#confirm').classList.contains('is-on')) $('#confirm').classList.remove('is-on');
   else if ($('#ask').classList.contains('is-on')) answer(null);
   else if (body.dataset.sheet === '1') sheet(false);
 });
@@ -1456,6 +1507,7 @@ if (cfg.lastMin) {
 }
 $('#awake').checked = cfg.awake !== false;
 amb.setKind(cfg.soundKind || 'flow');
+amb.vol = (cfg.vol || 70) / 100;
 renderSound();
 if (cfg.notify && !native.isNative) {
   const hasSupport =
@@ -1470,13 +1522,6 @@ const notifyEl = $('#notify');
 if (notifyEl) notifyEl.checked = !!cfg.notify;
 renderOath();
 const resumed = resume();
-
-$('#five').addEventListener('click', () => {
-  document.querySelectorAll('.pick').forEach((x) => x.classList.toggle('is-on', false));
-  capacityMin = 5;
-  amb.boot();
-  begin();
-});
 
 function quickStart(min) {
   if (session && !session.ended) {

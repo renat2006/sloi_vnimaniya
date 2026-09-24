@@ -114,7 +114,7 @@ export function experimentLine(cores) {
   return `<b>Эксперимент.</b> Наедине ${alone.length} сеанс(ов), глубина ${Math.round(a * 100)}% · при свидетелях ${seen.length}, глубина ${Math.round(s * 100)}%. Разница ${Math.abs(delta)} п.п. — при свидетелях ${sign}. Выборка мала, и вы сами выбирали, когда входить в зал: это наблюдение, а не доказательство.`;
 }
 
-const SND = { off: 'тишина', flow: 'поток', pink: 'розовый шум', white: 'белый шум' };
+const SND = { off: 'тишина', flow: 'поток', deep: 'глубина', light: 'свет', pink: 'розовый шум', white: 'белый шум' };
 const WHY = { thought: 'мысль', phone: 'телефон', noise: 'шум', tired: 'усталость', other: 'другое' };
 
 export function soundLine(cores) {
