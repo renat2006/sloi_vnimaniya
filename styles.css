@@ -777,3 +777,4 @@ body[data-net="offline"] #offline-banner {
 @media (min-width: 981px) {
   .update { left: auto; right: 24px; bottom: 24px; width: 360px; }
 }
+.update-h { font-size: 11px; line-height: 1.5; color: var(--dim2); border-left: 1px solid var(--cold); padding-left: 10px; }
