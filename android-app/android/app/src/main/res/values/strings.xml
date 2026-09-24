@@ -1,0 +1,9 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Слои внимания</string>
+    <string name="title_activity_main">Слои внимания</string>
+    <string name="package_name">site.renat.sloi</string>
+    <string name="custom_url_scheme">site.renat.sloi</string>
+    <string name="widget_description">Идущий сеанс или последний керн</string>
+    <string name="sloi_base_url" translatable="false">https://sloi.renat.site</string>
+</resources>

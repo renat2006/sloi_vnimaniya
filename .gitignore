@@ -3,3 +3,7 @@ sloi.db-shm
 sloi.db-wal
 *.pem
 .deploy.env
+android-app/node_modules/
+android-app/android/local.properties
+.npm-cache/
+smoke-screenshot.png

@@ -19,7 +19,7 @@ SSH=(ssh)
 echo "→ отправляю файлы на $HOST:$DIR"
 rsync -az --delete -e "${SSH[*]}" \
   --exclude '.git' --exclude '.claude' --exclude '*.pem' \
-  --exclude 'deploy.sh' --exclude '.deploy.env' --exclude 'sloi.db*' \
+  --exclude 'deploy.sh' --exclude '.deploy.env' --exclude 'sloi.db*' --exclude 'android-app' \
   ./ "$HOST:$DIR/"
 
 echo "→ перезапускаю сервис"

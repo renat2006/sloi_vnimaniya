@@ -1,0 +1,230 @@
+name: Релиз Android
+
+# Релиз выходит по тегу:   git tag v1.2.0 && git push origin v1.2.0
+# или вручную: Actions → «Релиз Android» → Run workflow.
+
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Тег релиза, например v1.2.0 (тег должен уже существовать)'
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  TAG: ${{ github.event.inputs.tag || github.ref_name }}
+
+jobs:
+  build:
+    name: Сборка и подпись
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+      prerelease: ${{ steps.ver.outputs.prerelease }}
+      cert: ${{ steps.pack.outputs.cert }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - name: Версия из тега
+        id: ver
+        run: |
+          if [[ ! "$TAG" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Тег '$TAG' не похож на версию (нужно vMAJOR.MINOR.PATCH, например v1.2.0)"
+            exit 1
+          fi
+          MAJ=${BASH_REMATCH[1]}; MIN=${BASH_REMATCH[2]}; PAT=${BASH_REMATCH[3]}
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+          echo "code=$(( MAJ * 1000000 + MIN * 1000 + PAT ))" >> "$GITHUB_OUTPUT"
+          [[ -n "${BASH_REMATCH[4]}" ]] && echo "prerelease=true" >> "$GITHUB_OUTPUT" || echo "prerelease=false" >> "$GITHUB_OUTPUT"
+
+      - name: Проверка секретов подписи
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          for v in KS KS_PASS KEY_ALIAS KEY_PASS; do
+            if [ -z "${!v}" ]; then
+              echo "::error::Не задан секрет для подписи ($v). Settings → Secrets and variables → Actions: ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD"
+              exit 1
+            fi
+          done
+          echo "$KS" | base64 --decode > "$RUNNER_TEMP/sloi-release.jks"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: android-app/package-lock.json
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Зависимости и синхронизация Capacitor
+        working-directory: android-app
+        run: |
+          npm ci
+          npx cap sync android
+
+      - name: Сборка APK и AAB
+        working-directory: android-app/android
+        env:
+          SLOI_VERSION_NAME: ${{ steps.ver.outputs.version }}
+          SLOI_VERSION_CODE: ${{ steps.ver.outputs.code }}
+          SLOI_KEYSTORE_FILE: ${{ runner.temp }}/sloi-release.jks
+          SLOI_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          SLOI_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          SLOI_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: ./gradlew assembleRelease bundleRelease --stacktrace
+
+      - name: Проверка подписи и упаковка
+        id: pack
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          OUT=android-app/android/app/build/outputs
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)
+          AAPT2=$(find "$ANDROID_HOME/build-tools" -name aapt2 | sort -V | tail -1)
+          mkdir -p dist
+          cp "$OUT/apk/release/app-release.apk" "dist/Sloi-Vnimaniya-${VERSION}-android.apk"
+          cp "$OUT/bundle/release/app-release.aab" "dist/Sloi-Vnimaniya-${VERSION}-android.aab"
+
+          "$APKSIGNER" verify --verbose "dist/Sloi-Vnimaniya-${VERSION}-android.apk"
+          CERT=$("$APKSIGNER" verify --print-certs "dist/Sloi-Vnimaniya-${VERSION}-android.apk" | grep -m1 "SHA-256 digest" | awk '{print $NF}')
+          echo "cert=$CERT" >> "$GITHUB_OUTPUT"
+
+          "$AAPT2" dump badging "dist/Sloi-Vnimaniya-${VERSION}-android.apk" | grep -E "^package|^sdkVersion|^targetSdkVersion"
+          NATIVE=$(unzip -l "dist/Sloi-Vnimaniya-${VERSION}-android.apk" | grep -c '\.so$' || true)
+          echo "нативных библиотек: $NATIVE (0 = работает на всех процессорах)"
+
+          (cd dist && sha256sum Sloi-Vnimaniya-* > SHA256SUMS.txt && cat SHA256SUMS.txt)
+          SIZE=$(stat -c %s "dist/Sloi-Vnimaniya-${VERSION}-android.apk")
+          echo "size_mb=$(awk -v s="$SIZE" 'BEGIN{printf "%.1f", s/1048576}')" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-files
+          path: dist/*
+          retention-days: 30
+
+  smoke:
+    name: Проверка на эмуляторе (Android ${{ matrix.api }})
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { api: 28, target: google_apis, arch: x86_64 }
+          - { api: 31, target: google_apis, arch: x86_64 }
+          - { api: 34, target: google_apis, arch: x86_64 }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-files
+          path: dist
+      - name: KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api }}
+          target: ${{ matrix.target }}
+          arch: ${{ matrix.arch }}
+          disable-animations: true
+          script: bash android-app/ci/smoke.sh "$(ls dist/*.apk | head -1)"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-android-${{ matrix.api }}
+          path: smoke-screenshot.png
+          if-no-files-found: ignore
+          retention-days: 7
+
+  publish:
+    name: Публикация релиза
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-files
+          path: dist
+
+      - name: Текст релиза
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+          CERT: ${{ needs.build.outputs.cert }}
+        run: |
+          APK="Sloi-Vnimaniya-${VERSION}-android.apk"
+          AAB="Sloi-Vnimaniya-${VERSION}-android.aab"
+          SIZE=$(awk -v s="$(stat -c %s "dist/$APK")" 'BEGIN{printf "%.1f", s/1048576}')
+          SUM=$(grep " $APK\$" dist/SHA256SUMS.txt | awk '{print $1}')
+          cat > notes.md <<NOTES
+          ## Слои внимания ${VERSION} для Android
+
+          **[⬇ Скачать ${APK}](https://github.com/${{ github.repository }}/releases/download/${TAG}/${APK})** · ${SIZE} МБ
+
+          Универсальная сборка: один файл для всех процессоров (ARM64, ARMv7, x86, x86_64), телефонов и планшетов с Android 7.0 и новее.
+
+          | Файл | Для чего |
+          |---|---|
+          | \`${APK}\` | установка на устройство |
+          | \`${AAB}\` | загрузка в Google Play |
+          | \`SHA256SUMS.txt\` | контрольные суммы |
+
+          **Как установить:** скачайте APK на телефон → откройте → разрешите установку из этого источника → «Установить». Виджет добавляется в приложении: *Настройки сеанса → Добавить виджет на экран*.
+
+          <details><summary>Проверка подлинности</summary>
+
+          SHA-256 файла: \`${SUM}\`
+
+          Сертификат подписи (SHA-256): \`${CERT}\`
+
+          \`\`\`bash
+          sha256sum -c SHA256SUMS.txt
+          apksigner verify --print-certs ${APK}
+          \`\`\`
+          </details>
+
+          ---
+          ### Что изменилось
+          NOTES
+
+      - name: Создать или обновить релиз
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build.outputs.version }}
+          PRE: ${{ needs.build.outputs.prerelease }}
+        run: |
+          FLAGS=(--title "Слои внимания ${VERSION}" --notes-file notes.md --generate-notes --verify-tag)
+          [ "$PRE" = "true" ] && FLAGS+=(--prerelease)
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --clobber
+            echo "Релиз $TAG уже существовал — файлы обновлены"
+          else
+            gh release create "$TAG" dist/* "${FLAGS[@]}"
+          fi
+          gh release view "$TAG" --json url -q .url >> "$GITHUB_STEP_SUMMARY"

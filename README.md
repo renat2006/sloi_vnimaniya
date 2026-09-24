@@ -315,3 +315,45 @@ Settings → Pages → Deploy from a branch → `main` / `/ (root)`. Через 
 
 Архив живёт в `localStorage`. Наружу уходит только то, что вы сами отправили,
 войдя в зал или поделившись ссылкой.
+
+## Android-приложение
+
+Папка `android-app/` — оболочка на Capacitor: тот же сайт (`https://sloi.renat.site`) в нативном окне плюс три нативные возможности, которых нет у PWA:
+
+- **Виджет** на главном экране (3×2): идущий сеанс с живым таймером и статусом «фокус / разрыв растёт», после сеанса — последний керн; нажатие открывает приложение. Добавляется кнопкой «Добавить виджет на экран» в настройках сеанса.
+- **Напоминание** «Сеанс завершён» — точный системный будильник (`AlarmManager`), приходит даже если приложение закрыто; не нужны ни Firebase, ни push-сервер.
+- **Нативная вибрация** (`@capacitor/haptics`).
+
+Веб-код узнаёт о нативной оболочке через `js/native.js`; в браузере и PWA этот модуль ничего не делает. Виджет получает состояние через плагин `SloiBridge` (`android-app/android/app/src/main/java/site/renat/sloi/`).
+
+Сборка (нужны Android Studio с SDK и JDK 21):
+
+```bash
+cd android-app
+npm install
+export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
+npm run apk        # android/app/build/outputs/apk/debug/app-debug.apk
+npm run sync:dev   # версия, которая смотрит на локальный сервер: http://10.0.2.2:4173 (эмулятор)
+```
+
+Публикация в Google Play потребует подписанного `release`-билда (keystore) и аккаунта разработчика. Разрешение `USE_EXACT_ALARM` разрешено политикой Play для приложений-таймеров.
+
+## Релизы и CI
+
+`.github/workflows/ci.yml` — на каждый пуш и pull request: проверка синтаксиса, смоук-тест сервера (`ci/smoke-web.mjs`: статика, закрытые файлы, протокол зала, push) и debug-сборка Android.
+
+`.github/workflows/release.yml` — релиз по тегу:
+
+```bash
+git tag v1.2.0 && git push origin v1.2.0
+```
+
+Workflow соберёт подписанные `APK` (universal: один файл для ARM64, ARMv7, x86, x86_64) и `AAB` для Google Play, проверит подпись, посчитает `SHA256SUMS.txt`, запустит приложение на эмуляторах Android 9, 12 и 14 и опубликует релиз со статусом, описанием и списком изменений. Версия берётся из тега: `v1.2.0` → `versionName 1.2.0`, `versionCode 1002000`; тег с суффиксом (`v1.3.0-beta.1`) выходит как пре-релиз.
+
+Один раз перед первым релизом нужно положить ключ подписи в секреты репозитория (ключ создан локально в `~/.sloi-signing/`, храните его копию):
+
+```bash
+bash ci/set-secrets.sh   # ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
+```
+
+Страница загрузки — `/download/` (`download/index.html`): сама подтягивает список версий из GitHub Releases, показывает актуальную сборку, историю, описания и отпечаток сертификата. После выхода релиза её не нужно обновлять.
