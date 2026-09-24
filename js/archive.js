@@ -114,6 +114,42 @@ export function experimentLine(cores) {
   return `<b>Эксперимент.</b> Наедине ${alone.length} сеанс(ов), глубина ${Math.round(a * 100)}% · при свидетелях ${seen.length}, глубина ${Math.round(s * 100)}%. Разница ${Math.abs(delta)} п.п. — при свидетелях ${sign}. Выборка мала, и вы сами выбирали, когда входить в зал: это наблюдение, а не доказательство.`;
 }
 
+const SND = { off: 'тишина', flow: 'поток', pink: 'розовый шум', white: 'белый шум' };
+const WHY = { thought: 'мысль', phone: 'телефон', noise: 'шум', tired: 'усталость', other: 'другое' };
+
+export function soundLine(cores) {
+  const real = cores.filter((c) => c.metrics && c.durationMs > 20000 && c.snd);
+  const by = {};
+  real.forEach((c) => (by[c.snd] = by[c.snd] || []).push(c));
+  const kinds = Object.keys(by);
+  if (kinds.length < 2) return '';
+  const parts = kinds.map((k) => {
+    const a = by[k].reduce((n, c) => n + c.metrics.depth, 0) / by[k].length;
+    return `${SND[k] || k} — ${by[k].length} сеанс(ов), глубина ${Math.round(a * 100)}%`;
+  });
+  const enough = kinds.every((k) => by[k].length >= 3);
+  return `<br><b>Фон.</b> ${parts.join(' · ')}. ${enough ? 'Разница между фонами мала, пока не повторится в разные дни — это наблюдение, а не вывод.' : 'Мало данных: сравнивайте после трёх сеансов на каждый фон.'}`;
+}
+
+export function whyLine(cores) {
+  const since = Date.now() - 7 * 86400000;
+  const cnt = {};
+  let n = 0;
+  cores
+    .filter((c) => c.startedAt >= since)
+    .forEach((c) =>
+      (c.layers || []).forEach((l) => {
+        if (l.why && WHY[l.why]) {
+          cnt[l.why] = (cnt[l.why] || 0) + 1;
+          n++;
+        }
+      })
+    );
+  if (n < 3) return '';
+  const top = Object.entries(cnt).sort((a, b) => b[1] - a[1])[0];
+  return `Чаще всего уводило: ${WHY[top[0]]} (${top[1]} из ${n} отмеченных разрывов).`;
+}
+
 export function mount(root, mode) {
   const all = [...store.list(), ...store.guests()].sort((a, b) => b.startedAt - a.startedAt);
   root.innerHTML = '';
@@ -207,6 +243,13 @@ function mountWeek(root, all) {
     wrap.appendChild(col);
   });
   root.appendChild(wrap);
+  const why = whyLine(all);
+  if (why) {
+    const p = document.createElement('p');
+    p.className = 'week-why';
+    p.textContent = why;
+    root.appendChild(p);
+  }
 }
 
 export function exportPNG(core, index) {

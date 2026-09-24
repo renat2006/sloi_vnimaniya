@@ -9,6 +9,51 @@ const CHORDS = [
   { name: 'светлый', upper: [2.5, 3, 5], colour: [5, 6, 7.5] }
 ];
 
+const NOISE = {
+  pink: { level: 0.5, tone: 12000 },
+  white: { level: 0.32, tone: 8500 }
+};
+const NOISE_SECONDS = 16;
+const HEAR_FIRST = 3600;
+const HEAR_EVERY = 2700;
+
+function noiseBuffer(ctx, kind) {
+  const rate = ctx.sampleRate;
+  const len = Math.floor(rate * NOISE_SECONDS);
+  const buf = ctx.createBuffer(2, len, rate);
+  for (let ch = 0; ch < 2; ch++) {
+    const d = buf.getChannelData(ch);
+    let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+    for (let i = 0; i < len; i++) {
+      const w = Math.random() * 2 - 1;
+      if (kind === 'pink') {
+        b0 = 0.99886 * b0 + w * 0.0555179;
+        b1 = 0.99332 * b1 + w * 0.0750759;
+        b2 = 0.969 * b2 + w * 0.153852;
+        b3 = 0.8665 * b3 + w * 0.3104856;
+        b4 = 0.55 * b4 + w * 0.5329522;
+        b5 = -0.7616 * b5 - w * 0.016898;
+        d[i] = b0 + b1 + b2 + b3 + b4 + b5 + b6 + w * 0.5362;
+        b6 = w * 0.115926;
+      } else {
+        d[i] = w;
+      }
+    }
+    let sum = 0;
+    for (let i = 0; i < len; i++) sum += d[i] * d[i];
+    const k = 0.2 / Math.sqrt(sum / len || 1);
+    for (let i = 0; i < len; i++) d[i] *= k;
+    const fade = Math.floor(rate * 1);
+    for (let i = 0; i < fade; i++) {
+      const a = i / fade;
+      const head = d[i];
+      const tail = d[len - fade + i];
+      d[len - fade + i] = tail * Math.cos(a * Math.PI / 2) + head * Math.sin(a * Math.PI / 2);
+    }
+  }
+  return buf;
+}
+
 const SCALE = [1, 9 / 8, 4 / 3, 3 / 2, 5 / 3, 2, 9 / 4, 8 / 3];
 
 export class Ambience {
@@ -23,6 +68,12 @@ export class Ambience {
     this.step = 0;
     this.playing = null;
     this.timer = null;
+    this.kind = 'flow';
+    this.noise = {};
+    this.heard = 0;
+    this.nextHear = HEAR_FIRST;
+    this.leftAt = 0;
+    this.onHearing = null;
   }
 
   boot() {
@@ -39,13 +90,24 @@ export class Ambience {
     soft.ratio.value = 5;
     soft.attack.value = 0.03;
     soft.release.value = 0.5;
-    master.connect(soft).connect(ctx.destination);
+    const limiter = ctx.createDynamicsCompressor();
+    limiter.threshold.value = -10;
+    limiter.knee.value = 0;
+    limiter.ratio.value = 20;
+    limiter.attack.value = 0.003;
+    limiter.release.value = 0.12;
+    master.connect(soft).connect(limiter).connect(ctx.destination);
     this.master = master;
     this.bus = soft;
 
+    const flowOut = ctx.createGain();
+    flowOut.gain.value = 1;
+    flowOut.connect(master);
+    this.flowOut = flowOut;
+
     const breathGain = ctx.createGain();
     breathGain.gain.value = 1;
-    breathGain.connect(master);
+    breathGain.connect(flowOut);
     this.breathGain = breathGain;
 
     const breath = ctx.createOscillator();
@@ -70,7 +132,7 @@ export class Ambience {
 
     const sand = ctx.createGain();
     sand.gain.value = 1;
-    sand.connect(master);
+    sand.connect(flowOut);
     this.sand = sand;
 
     const makeVoice = (ratio, type, level, pan) => {
@@ -157,6 +219,7 @@ export class Ambience {
     this.ready = true;
     this.setFill(this.fill);
     this.applyChord(0, ctx.currentTime + 0.4);
+    this.applyKind(true);
   }
 
   async enable(v) {
@@ -167,6 +230,41 @@ export class Ambience {
     }
     if (!this.master) return;
     this.ramp(this.master.gain, v ? 0.5 : 0, 1.6);
+  }
+
+  setKind(kind) {
+    this.kind = kind === 'pink' || kind === 'white' ? kind : 'flow';
+    if (this.ready) this.applyKind();
+  }
+
+  ensureNoise(kind) {
+    if (this.noise[kind]) return this.noise[kind];
+    const ctx = this.ctx;
+    const src = ctx.createBufferSource();
+    src.buffer = noiseBuffer(ctx, kind);
+    src.loop = true;
+    const tone = ctx.createBiquadFilter();
+    tone.type = 'lowpass';
+    tone.frequency.value = NOISE[kind].tone;
+    tone.Q.value = 0.3;
+    const gain = ctx.createGain();
+    gain.gain.value = 0;
+    src.connect(tone).connect(gain).connect(this.master);
+    src.start();
+    this.noise[kind] = { gain };
+    return this.noise[kind];
+  }
+
+  applyKind(now = false) {
+    if (!this.ready) return;
+    const noisy = this.kind === 'pink' || this.kind === 'white';
+    this.ramp(this.flowOut.gain, noisy ? 0 : 1, now ? 0.05 : 1.2);
+    ['pink', 'white'].forEach((k) => {
+      const want = this.kind === k && this.active;
+      if (want) this.ensureNoise(k);
+      const n = this.noise[k];
+      if (n) this.ramp(n.gain.gain, want ? NOISE[k].level : 0, now ? 0.05 : 1.6);
+    });
   }
 
   ramp(param, v, t = 0.4) {
@@ -207,12 +305,19 @@ export class Ambience {
     this.nextNoteAt = this.ctx.currentTime + 8;
     this.applyChord(0, this.ctx.currentTime + 0.3);
     this.setFill(this.fill);
+    if (Date.now() - this.leftAt > 600000) {
+      this.heard = 0;
+      this.nextHear = HEAR_FIRST;
+    }
+    this.applyKind();
   }
 
   leave() {
     if (!this.ready) return;
     this.active = false;
+    this.leftAt = Date.now();
     this.rate = 0;
+    this.applyKind();
     clearTimeout(this._melTimer);
     clearTimeout(this._leaveTimer);
     [...this.pedal, ...this.upper].forEach((v) => this.ramp(v.gain.gain, 0, 1.6));
@@ -248,6 +353,14 @@ export class Ambience {
   tick() {
     if (!this.ready || !this.on || !this.active) return;
     const t = this.ctx.currentTime;
+    if (this.ctx.state === 'running' && !document.hidden) {
+      this.heard += 0.25;
+      if (this.heard >= this.nextHear) {
+        this.nextHear += HEAR_EVERY;
+        if (this.onHearing) this.onHearing(Math.round(this.heard / 60));
+      }
+    }
+    if (this.kind !== 'flow') return;
     if (this.frozen) return;
 
     if (t + 0.4 >= this.nextChordAt) {
@@ -521,8 +634,12 @@ export class Ambience {
     third.start();
     third.stop(ctx.currentTime + 10);
 
-    this.bell(ROOT * 4, 6, 0.1);
-    this.bell(ROOT * 6, 5, 0.045, 0.3);
+    if (this.kind === 'flow') {
+      this.bell(ROOT * 4, 6, 0.1);
+      this.bell(ROOT * 6, 5, 0.045, 0.3);
+    } else {
+      this.ping(ROOT * 8, 3, 0.05);
+    }
     this._leaveTimer = setTimeout(() => this.leave(), 6800);
   }
 

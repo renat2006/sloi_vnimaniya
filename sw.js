@@ -1,4 +1,4 @@
-const VERSION = 'sloi-v2';
+const VERSION = 'sloi-v3';
 const SHELL = [
   './',
   './index.html',

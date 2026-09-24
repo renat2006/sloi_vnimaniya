@@ -778,3 +778,37 @@ body[data-net="offline"] #offline-banner {
   .update { left: auto; right: 24px; bottom: 24px; width: 360px; }
 }
 .update-h { font-size: 11px; line-height: 1.5; color: var(--dim2); border-left: 1px solid var(--cold); padding-left: 10px; }
+
+/* ── фон, причина ухода, парковка мыслей, основание ───────────────────── */
+.seg .chip { cursor: pointer; }
+.seg .chip:hover { border-color: var(--dim2); color: var(--bone); }
+#snd-note { margin-top: 10px; min-height: 2.6em; }
+.stage-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.ask-lbl { margin: 16px 0 9px; }
+.ask-lbl:first-of-type { margin-top: 0; }
+#ask-why .chip, #ask-chips .chip { cursor: pointer; min-height: 40px; }
+#ask-why .chip:hover { border-color: var(--bone); color: var(--bone); }
+#park-in {
+  width: 100%; background: none; border: 0; border-bottom: 1px solid var(--line);
+  color: var(--bone); font-family: var(--serif); font-size: 21px; font-weight: 300;
+  padding: 6px 0 12px; outline: none; transition: border-color 0.5s var(--ease);
+}
+#park-in::placeholder { color: rgba(232,226,214,0.2); }
+#park-in:focus { border-color: var(--dim2); }
+.lab-notes { list-style: none; margin-top: 14px; display: grid; gap: 6px; font-size: 12.5px; line-height: 1.6; color: var(--dim); border-left: 1px solid var(--line); padding-left: 14px; }
+.lab-notes[hidden] { display: none; }
+.lab-notes li::before { content: "— "; color: var(--dim2); }
+.week-why { margin-top: 22px; font-family: var(--serif); font-style: italic; font-size: 17px; color: rgba(232,226,214,0.7); }
+.ev-h { font-family: var(--serif); font-weight: 300; font-size: 22px; margin: 26px 0 8px; }
+.refs.ev a { color: var(--dim); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--line); }
+.refs.ev a:hover { color: var(--bone); }
+.ev-t {
+  font-style: normal; font-size: 9.5px; letter-spacing: 0.16em; text-transform: uppercase;
+  border: 1px solid var(--line); padding: 1px 6px; margin-left: 4px; color: var(--dim2); white-space: nowrap;
+}
+.ev-t--hi { color: var(--warm); border-color: rgba(200,160,110,0.4); }
+.ev-t--mid { color: var(--bone); }
+@media (max-width: 720px) {
+  .stage-actions .ghost { flex: 1; text-align: center; min-height: 44px; }
+  #ask-why .chip, #ask-chips .chip { min-height: 44px; }
+}

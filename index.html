@@ -97,6 +97,22 @@
             <li><b>Разрыв не приговор.</b> Слой после разрыва — не провал, а точка нового отсчёта <i>(Dai, Milkman &amp; Riis, 2014)</i>.</li>
             <li><b>Зал.</b> Присутствие других меняет исполнение <i>(Triplett, 1898; Zajonc, 1965)</i>. Рейтинга здесь нет намеренно: публичное сравнение подтягивает отстающих и расслабляет опережающих <i>(Schultz et al., 2007)</i>.</li>
           </ol>
+          <h3 class="ev-h">Что известно о звуке и внимании</h3>
+          <p class="fineprint">Звуковой фон — вспомогательный приём, не лечение и не диагностика. Эффекты малы и у людей разные, поэтому приложение сравнивает ваши собственные сеансы, а не обещает результат.</p>
+          <ol class="refs ev">
+            <li><b>Тишина — контроль.</b> Для чтения, новых тем и запоминания часто лучше любой музыки <i>(Cheah et al., 2022)</i>. <a href="https://journals.sagepub.com/doi/10.1177/20592043221134392" target="_blank" rel="noopener">источник</a> <em class="ev-t ev-t--hi">высокая как контроль</em></li>
+            <li><b>Белый и розовый шум.</b> Мета-анализ 13 испытаний (335 человек с СДВГ или выраженными симптомами): небольшой плюс в лабораторных заданиях, g≈0,25; у людей без СДВГ эффект был отрицательным. Испытания короткие и без ослепления. <a href="https://www.frontiersin.org/journals/psychology/articles/10.3389/fpsyg.2025.1476928/full" target="_blank" rel="noopener">источник</a> <em class="ev-t ev-t--mid">умеренная</em></li>
+            <li><b>Спокойный инструментал («Поток»).</b> Результаты противоречивы: одним читать легче, другим труднее. <a href="https://pubmed.ncbi.nlm.nih.gov/37171837/" target="_blank" rel="noopener">обзор 2023</a> · <a href="https://pubmed.ncbi.nlm.nih.gov/32559672/" target="_blank" rel="noopener">эксперимент</a> <em class="ev-t ev-t--low">низкая–умеренная</em></li>
+            <li><b>Чего здесь нет.</b> Песен со словами (мешают чтению), бинауральных ритмов (пользы не показано) и коричневого шума (испытаний не найдено). Режим с модуляцией 16 Гц пока экспериментальный и не включён. <a href="https://pubmed.ncbi.nlm.nih.gov/39443657/" target="_blank" rel="noopener">исследование 16 Гц</a> <em class="ev-t ev-t--low">предварительная</em></li>
+            <li><b>Слух.</b> Безопасное прослушивание (рекомендации ВОЗ) — умеренная громкость и паузы. Фон здесь тихий, с ограничителем пиков, а через час звука приложение напоминает дать ушам отдых.</li>
+          </ol>
+          <h3 class="ev-h">Что известно о возврате к делу</h3>
+          <ol class="refs ev">
+            <li><b>Микростарт.</b> Прокрастинацию описывают как разрыв между намерением и действием <i>(Rozental et al., 2018)</i>, поэтому вход сведён к одному нажатию: короткий сеанс без настройки. <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC6125391/" target="_blank" rel="noopener">источник</a> <em class="ev-t ev-t--mid">умеренная</em></li>
+            <li><b>Парковка мысли.</b> При СДВГ сильнее всего вредит спонтанное блуждание ума; записать мысль проще, чем уйти за ней. <a href="https://link.springer.com/article/10.1007/s10802-022-00912-6" target="_blank" rel="noopener">источник</a> <em class="ev-t ev-t--mid">умеренная</em></li>
+            <li><b>Причина ухода.</b> Отметка «что перехватило» — самонаблюдение, а не оценка; итог недели покажет, что уводит чаще всего. <em class="ev-t ev-t--low">рабочая гипотеза</em></li>
+            <li><b>Зал.</b> Работа рядом с другими описана в пользовательских исследованиях, но контролируемых испытаний нет. <a href="https://dl.acm.org/doi/full/10.1145/3689648" target="_blank" rel="noopener">источник</a> <em class="ev-t ev-t--low">слабая</em></li>
+          </ol>
           <p class="fineprint">Индекс дробления = 1 − Σ(fᵢ/F)², где fᵢ — длительности непрерывных рабочих отрезков. В исследованиях экранного внимания средняя длина непрерывного эпизода измеряется десятками секунд <i>(Mark, 2023)</i>. Ни один байт не уходит с вашей машины, пока вы сами не войдёте в зал.</p>
       </div>
       <p class="ritual-go"><button class="lnk" data-go="intro">← назад к экспликации</button></p>
@@ -127,17 +143,22 @@
 
         <details class="fold" id="more-settings">
           <summary>Настройки сеанса</summary>
+          <div class="field">
+            <span class="lbl">Звуковой фон <i>— у каждого свой; сравнивайте на своих сеансах</i></span>
+            <div class="chips seg" id="snd" role="radiogroup" aria-label="Звуковой фон">
+              <button type="button" class="chip" role="radio" data-snd="off">Тишина</button>
+              <button type="button" class="chip" role="radio" data-snd="flow">Поток</button>
+              <button type="button" class="chip" role="radio" data-snd="pink">Розовый шум</button>
+              <button type="button" class="chip" role="radio" data-snd="white">Белый шум</button>
+            </div>
+            <p class="side-note" id="snd-note"></p>
+          </div>
+
           <div class="field switches">
             <label class="switch">
               <input type="checkbox" id="awake" checked>
               <span class="sw-box"></span>
               <span class="sw-txt">Держать экран<i>иначе сон экрана считается разрывом</i></span>
-            </label>
-
-            <label class="switch">
-              <input type="checkbox" id="sound-vow">
-              <span class="sw-box"></span>
-              <span class="sw-txt">Звук потока<i>шорох песка, тон на разрыве</i></span>
             </label>
 
             <label class="switch">
@@ -168,6 +189,7 @@
             <span class="picks-unit">минут<br>в колбе</span>
           </div>
           <button class="cta" id="begin"><span>Начать сеанс</span><em></em></button>
+          <button class="lnk" id="five" title="Короткий сеанс без раздумий">только 5 минут</button>
           <button class="lnk" data-go="intro">назад</button>
         </div>
       </div>
@@ -205,6 +227,7 @@
       <ol class="journal" id="journal"></ol>
       <div class="stage-actions">
         <button class="ghost" id="journal-toggle">Журнал</button>
+        <button class="ghost" id="park" title="Записать мысль и вернуться к работе">Отложить мысль</button>
         <button class="ghost" id="finish" title="Завершить и извлечь керн">Завершить</button>
       </div>
 
@@ -214,6 +237,7 @@
         <p class="lab-sub" id="lab-sub"></p>
         <dl class="lab-metrics" id="lab-metrics"></dl>
         <p class="lab-read" id="lab-read"></p>
+        <ul class="lab-notes" id="lab-notes" hidden></ul>
         <div class="lab-actions">
           <button class="ghost primary" id="again">Ещё сеанс</button>
           <button class="ghost secondary" id="to-archive">В архив</button>
@@ -243,7 +267,7 @@
     </div>
     <div class="room-body">
       <div class="room-main" data-room-pane="presence">
-        <p class="room-note">Здесь нет рейтинга — только присутствие. Гипотеза перформанса: при свидетелях доля фокуса выше. Ваш собственный архив её и проверяет: каждый керн помечен, был ли он одиноким.</p>
+        <p class="room-note">Тихий коворкинг: здесь нет рейтинга и чата — только присутствие других рядом. Гипотеза перформанса: при свидетелях доля фокуса выше. Строгих испытаний у такого эффекта пока нет; ваш архив и есть проверка — каждый керн помечен, был ли он одиноким.</p>
         <div class="wall" id="wall" data-room-pane="presence"></div>
         <div class="feed-block" data-room-pane="presence">
           <p class="overline">Что происходит <span class="feed-live" id="feed-live"></span></p>
@@ -298,12 +322,33 @@
 <div class="ask" id="ask">
   <div class="ask-box">
     <p class="overline">Разрыв <span id="ask-dur"></span></p>
-    <h3>Где вы были?</h3>
-    <p class="ask-sub">Слой уже отложен — ответ меняет его породу, но не длину. Прибор здесь вы.</p>
+    <h3>Что перехватило внимание?</h3>
+    <p class="ask-sub">Слой уже отложен — ответ меняет его породу, но не длину. Отвечать не обязательно.</p>
+    <p class="lbl ask-lbl" id="ask-lbl-in">В круге разрешённого</p>
     <div class="ask-chips" id="ask-chips"></div>
+    <p class="lbl ask-lbl">Вне круга</p>
+    <div class="ask-chips" id="ask-why">
+      <button type="button" class="chip" data-why="thought">Мысль</button>
+      <button type="button" class="chip" data-why="phone">Телефон</button>
+      <button type="button" class="chip" data-why="noise">Шум</button>
+      <button type="button" class="chip" data-why="tired">Усталость</button>
+      <button type="button" class="chip" data-why="other">Другое</button>
+    </div>
     <div class="ask-actions">
-      <button class="ghost" id="ask-out">Вне круга</button>
       <button class="ghost" id="ask-skip">Не отвечать</button>
+    </div>
+  </div>
+</div>
+
+<div class="ask" id="park-box">
+  <div class="ask-box">
+    <p class="overline">Парковка мыслей</p>
+    <h3>Отложить, чтобы не ушло</h3>
+    <p class="ask-sub">Запишите мысль одной строкой — она ляжет в керн, а слой останется цельным.</p>
+    <input id="park-in" maxlength="140" placeholder="написать Ане · купить кабель · проверить формулу" autocomplete="off">
+    <div class="ask-actions">
+      <button class="ghost primary" id="park-save">Отложить</button>
+      <button class="ghost" id="park-close">Вернуться</button>
     </div>
   </div>
 </div>

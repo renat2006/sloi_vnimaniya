@@ -46,6 +46,7 @@ export function config() {
     circle: ['Редактор кода', 'Справочник', 'Заметки'],
     room: 'зал',
     sound: false,
+    soundKind: 'flow',
     notify: false,
     bestMs: 0
   };
@@ -97,6 +98,7 @@ export function saveLive(session, elapsedMs, owner) {
     startedAt: session.startedAt,
     witnessed: session.witnessed,
     layers: session.layers,
+    notes: session.notes || [],
     elapsedMs,
     savedAt: Date.now()
   });

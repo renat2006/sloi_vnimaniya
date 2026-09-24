@@ -280,7 +280,7 @@ export class Presence {
           breaks: core.metrics.breaks,
           transitions: core.metrics.transitions,
           fragmentation: core.metrics.fragmentation,
-          layers: core.layers
+          layers: core.layers.map((l) => ({ type: l.type, start: l.start, end: l.end }))
         })
       });
       return r.ok;

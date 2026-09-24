@@ -27,6 +27,7 @@ export function createSession(capacityMs, task) {
     t0: performance.now(),
     layers: [{ type: 'focus', start: 0, end: null }],
     witnessed: false,
+    notes: [],
     ended: false,
     endMs: 0
   };
@@ -64,7 +65,9 @@ export function lastClosedDrift(s) {
 export function sealed(s) {
   const e = elapsed(s);
   return s.layers
-    .map((l) => ({ type: l.type, start: l.start, end: Math.min(l.end ?? e, e) }))
+    .map((l) => (l.why
+      ? { type: l.type, start: l.start, end: Math.min(l.end ?? e, e), why: l.why }
+      : { type: l.type, start: l.start, end: Math.min(l.end ?? e, e) }))
     .filter((l) => l.end > l.start);
 }
 

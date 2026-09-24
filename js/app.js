@@ -423,6 +423,7 @@ function begin() {
   cfg = store.setConfig({ lastTask: task, lastMin: capacityMin });
   session = createSession(capacityMin * 60000, task);
   session.witnessed = wantWitness && presence.live;
+  session.snd = cfg.sound ? cfg.soundKind || 'flow' : 'off';
   focused = true;
   body.dataset.phase = 'live';
   body.dataset.drift = '0';
@@ -509,6 +510,7 @@ function resume() {
   session.startedAt = v.startedAt;
   session.witnessed = !!v.witnessed;
   session.layers = v.layers;
+  session.notes = Array.isArray(v.notes) ? v.notes.slice(0, 20) : [];
 
   const open = session.layers[session.layers.length - 1];
   if (open) {
@@ -549,6 +551,8 @@ function resume() {
   return true;
 }
 
+const WHY_LABEL = { thought: 'мысль', phone: 'телефон', noise: 'шум', tired: 'усталость', other: 'другое' };
+
 function ask(durMs) {
   $('#ask-dur').textContent = fmtShort(durMs);
   const box = $('#ask-chips');
@@ -560,13 +564,17 @@ function ask(durMs) {
     el.addEventListener('click', () => answer(name));
     box.appendChild(el);
   });
-  if (!cfg.circle.length) {
-    box.innerHTML = '<span class="side-note">Круг пуст. Очертите его перед следующим сеансом.</span>';
-  }
+  $('#ask-lbl-in').hidden = !cfg.circle.length;
+  box.hidden = !cfg.circle.length;
   $('#ask').classList.add('is-on');
 }
 
-function answer(name) {
+function answer(name, why) {
+  if (why && pendingDrift && pendingDrift.type === 'drift') {
+    pendingDrift.why = why;
+    journal();
+    persistLive(elapsed(session));
+  }
   if (name && pendingDrift && pendingDrift.type === 'drift') {
     pendingDrift.type = 'permitted';
     amb.forgive();
@@ -591,7 +599,8 @@ function journal() {
       const li = document.createElement('li');
       li.className = l.type;
       li.style.animationDelay = Math.min(i * 30, 240) + 'ms';
-      li.innerHTML = `<b>${label[l.type]}</b><span>${fmt(l.start)} → ${fmt(l.end)}</span>`;
+      const why = l.why && WHY_LABEL[l.why] ? ` · ${WHY_LABEL[l.why]}` : '';
+      li.innerHTML = `<b>${label[l.type]}${why}</b><span>${fmt(l.start)} → ${fmt(l.end)}</span>`;
       el.appendChild(li);
     });
 }
@@ -758,6 +767,8 @@ function finish(auto) {
     durationMs: e,
     task: session.task,
     witnessed: session.witnessed,
+    snd: session.snd || 'off',
+    notes: session.notes && session.notes.length ? session.notes.slice() : undefined,
     layers,
     metrics: m
   });
@@ -826,11 +837,16 @@ function finish(auto) {
     })
     .join('');
   $('#lab-read').textContent = archive.readingOf(m);
+  const notesEl = $('#lab-notes');
+  const notes = (lastCore && lastCore.notes) || [];
+  notesEl.innerHTML = notes.map((n) => `<li>${esc(n.text)}</li>`).join('');
+  notesEl.hidden = !notes.length;
 }
 
 function renderArchive() {
   archive.mount($('#arc-body'), arcMode);
-  $('#experiment').innerHTML = archive.experimentLine(store.list());
+  const all = store.list();
+  $('#experiment').innerHTML = archive.experimentLine(all) + archive.soundLine(all);
 }
 
 function renderRoom() {
@@ -961,6 +977,8 @@ $('#witness').addEventListener('change', (e) => {
     toast('зал не отвечает');
   }
 });
+const e_pressed = (el) => el.getAttribute('aria-pressed') === 'true';
+
 function askFinish() {
   if (!session || session.ended) return;
   const fill = Math.min(1, elapsed(session) / session.capacityMs);
@@ -969,6 +987,29 @@ function askFinish() {
   $('#confirm').classList.add('is-on');
 }
 $('#finish').addEventListener('click', askFinish);
+function parkOpen(v) {
+  $('#park-box').classList.toggle('is-on', v);
+  if (v) setTimeout(() => $('#park-in').focus(), 60);
+  else $('#park-in').value = '';
+}
+function parkSave() {
+  const text = $('#park-in').value.trim().slice(0, 140);
+  if (text && session && !session.ended) {
+    session.notes = session.notes || [];
+    if (session.notes.length < 20) session.notes.push({ at: elapsed(session), text });
+    persistLive(elapsed(session));
+    buzz(10);
+    toast('мысль отложена — вернитесь к слою');
+  }
+  parkOpen(false);
+}
+$('#park').addEventListener('click', () => parkOpen(true));
+$('#park-save').addEventListener('click', parkSave);
+$('#park-close').addEventListener('click', () => parkOpen(false));
+$('#park-in').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') parkSave();
+  if (e.key === 'Escape') parkOpen(false);
+});
 $('#cf-no').addEventListener('click', () => $('#confirm').classList.remove('is-on'));
 $('#cf-yes').addEventListener('click', () => {
   $('#confirm').classList.remove('is-on');
@@ -979,13 +1020,38 @@ $('#awake').addEventListener('change', (e) => {
   cfg = store.setConfig({ awake: e.target.checked });
   if (session && !session.ended) holdScreen(e.target.checked);
 });
-$('#sound-vow').addEventListener('change', async (e) => {
-  buzz(8);
-  $('#sound').setAttribute('aria-pressed', String(e.target.checked));
-  cfg = store.setConfig({ sound: e.target.checked });
+const SND_NOTE = {
+  off: 'Без звука — ваш контроль для сравнения.',
+  flow: 'Тихий инструментальный фон и шорох песка. Без слов.',
+  pink: 'Мягкий ровный шум. Для части людей с СДВГ помогает, для других нет.',
+  white: 'Более яркий шум. Эффект малый и не у всех — сверяйтесь с архивом.'
+};
+function renderSound() {
+  const kind = cfg.sound ? cfg.soundKind || 'flow' : 'off';
+  document.querySelectorAll('#snd [data-snd]').forEach((b) => {
+    const on = b.dataset.snd === kind;
+    b.classList.toggle('is-on', on);
+    b.setAttribute('aria-checked', String(on));
+  });
+  $('#snd-note').textContent = SND_NOTE[kind];
+  $('#sound').setAttribute('aria-pressed', String(cfg.sound));
+}
+async function setSound(kind) {
+  const on = kind !== 'off';
+  cfg = store.setConfig(on ? { sound: true, soundKind: kind } : { sound: false });
+  amb.setKind(cfg.soundKind || 'flow');
   amb.boot();
-  await amb.enable(e.target.checked);
-});
+  await amb.enable(on);
+  renderSound();
+}
+document.querySelectorAll('#snd [data-snd]').forEach((b) =>
+  b.addEventListener('click', () => {
+    buzz(8);
+    setSound(b.dataset.snd);
+  })
+);
+amb.onHearing = (min) =>
+  toast(`Звук идёт уже ${min >= 60 ? 'больше часа' : min + ' мин'} — дайте ушам паузу`);
 $('#notify').addEventListener('change', async (e) => {
   buzz(8);
   if (e.target.checked && native.isNative) {
@@ -1145,15 +1211,16 @@ function sheet(open) {
   $('#journal-toggle').textContent = open ? 'Закрыть' : 'Журнал';
 }
 $('#journal-toggle').addEventListener('click', () => sheet(body.dataset.sheet !== '1'));
-$('#ask-out').addEventListener('click', () => answer(null));
+document.querySelectorAll('#ask-why [data-why]').forEach((b) =>
+  b.addEventListener('click', () => {
+    buzz(8);
+    answer(null, b.dataset.why);
+  })
+);
 $('#ask-skip').addEventListener('click', () => answer(null));
-$('#sound').addEventListener('click', async (e) => {
-  const on = e.currentTarget.getAttribute('aria-pressed') === 'true';
-  e.currentTarget.setAttribute('aria-pressed', String(!on));
-  $('#sound-vow').checked = !on;
-  cfg = store.setConfig({ sound: !on });
-  amb.boot();
-  await amb.enable(!on);
+$('#sound').addEventListener('click', () => {
+  const on = e_pressed($('#sound'));
+  setSound(on ? 'off' : cfg.soundKind || 'flow');
 });
 document.querySelectorAll('.tab').forEach((t) =>
   t.addEventListener('click', () => {
@@ -1388,8 +1455,8 @@ if (cfg.lastMin) {
   }
 }
 $('#awake').checked = cfg.awake !== false;
-$('#sound-vow').checked = !!cfg.sound;
-$('#sound').setAttribute('aria-pressed', String(!!cfg.sound));
+amb.setKind(cfg.soundKind || 'flow');
+renderSound();
 if (cfg.notify && !native.isNative) {
   const hasSupport =
     'Notification' in window &&
@@ -1404,12 +1471,19 @@ if (notifyEl) notifyEl.checked = !!cfg.notify;
 renderOath();
 const resumed = resume();
 
+$('#five').addEventListener('click', () => {
+  document.querySelectorAll('.pick').forEach((x) => x.classList.toggle('is-on', false));
+  capacityMin = 5;
+  amb.boot();
+  begin();
+});
+
 function quickStart(min) {
   if (session && !session.ended) {
     go('stage');
     return;
   }
-  capacityMin = [2, 15, 25, 50].includes(min) ? min : 25;
+  capacityMin = [2, 5, 15, 25, 50].includes(min) ? min : 25;
   $('#task').value = cfg.lastTask || '';
   begin();
 }
