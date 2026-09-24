@@ -924,3 +924,8 @@ body[data-view="stage"][data-phase="live"] .snd-fab { display: grid; }
   .snd-card { grid-template-columns: minmax(0, 1fr); gap: 10px; }
   .snd-fig { width: 100%; height: 44px; }
 }
+
+/* во время сеанса звук живёт у колбы, в шапке его не дублируем */
+body[data-view="stage"][data-phase="live"] #sound, body[data-view="stage"][data-phase="live"] .topbar > .sound { display: none; }
+.snd-fab .eq { height: 16px; }
+.snd-fab .eq i { width: 2px; }
