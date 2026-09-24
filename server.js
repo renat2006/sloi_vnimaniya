@@ -348,7 +348,7 @@ setInterval(() => {
   }
 }, 4000);
 
-const STATIC_OK = /^\/(index\.html|styles\.css|sw\.js|manifest\.webmanifest|download\/index\.html|js\/[\w.-]+\.js|icons\/[\w.-]+\.(png|svg|ico))$/;
+const STATIC_OK = /^\/(index\.html|styles\.css|sw\.js|manifest\.webmanifest|download\/index\.html|\.well-known\/assetlinks\.json|js\/[\w.-]+\.js|icons\/[\w.-]+\.(png|svg|ico))$/;
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',

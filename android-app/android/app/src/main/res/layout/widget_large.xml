@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/w_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_bg"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+        android:includeFontPadding="false"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="monospace"
+                android:letterSpacing="0.2"
+                android:text="СЛОИ ВНИМАНИЯ"
+                android:textColor="#8A857B"
+                android:textSize="9sp" />
+
+            <Chronometer
+        android:includeFontPadding="false"
+                android:id="@+id/w_chrono"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:fontFamily="serif"
+                android:textColor="#E8E2D6"
+                android:textSize="44sp"
+                android:visibility="gone" />
+
+            <TextView
+        android:includeFontPadding="false"
+                android:id="@+id/w_big"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:fontFamily="serif"
+                android:maxLines="1"
+                android:text="Начать"
+                android:textColor="#E8E2D6"
+                android:textSize="40sp" />
+
+            <TextView
+        android:includeFontPadding="false"
+                android:id="@+id/w_status"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:fontFamily="monospace"
+                android:letterSpacing="0.1"
+                android:maxLines="1"
+                android:textAllCaps="true"
+                android:textColor="#8A857B"
+                android:textSize="10sp" />
+
+            <TextView
+        android:includeFontPadding="false"
+                android:id="@+id/w_sub"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:ellipsize="end"
+                android:fontFamily="serif"
+                android:maxLines="2"
+                android:textColor="#B9B3A8"
+                android:textSize="14sp"
+                android:textStyle="italic" />
+        </LinearLayout>
+
+        <ImageView
+            android:id="@+id/w_flask"
+            android:layout_width="70dp"
+            android:layout_height="match_parent"
+            android:layout_marginStart="12dp"
+            android:contentDescription="@null"
+            android:scaleType="fitCenter" />
+    </LinearLayout>
+
+    <TextView
+        android:includeFontPadding="false"
+        android:id="@+id/w_stats"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:ellipsize="end"
+        android:fontFamily="monospace"
+        android:letterSpacing="0.06"
+        android:maxLines="1"
+        android:textColor="#8A857B"
+        android:textSize="10sp" />
+
+    <LinearLayout
+        android:id="@+id/w_idle_actions"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:orientation="horizontal">
+
+        <TextView
+        android:includeFontPadding="false"
+            android:id="@+id/w_start15"
+            android:layout_width="0dp"
+            android:layout_height="40dp"
+            android:layout_marginEnd="6dp"
+            android:layout_weight="1"
+            android:background="@drawable/widget_btn_bg"
+            android:fontFamily="monospace"
+            android:gravity="center"
+            android:text="15 мин"
+            android:textColor="#E8E2D6"
+            android:textSize="12sp" />
+
+        <TextView
+        android:includeFontPadding="false"
+            android:id="@+id/w_start25"
+            android:layout_width="0dp"
+            android:layout_height="40dp"
+            android:layout_marginEnd="6dp"
+            android:layout_weight="1"
+            android:background="@drawable/widget_btn_fill"
+            android:fontFamily="monospace"
+            android:gravity="center"
+            android:text="25 мин"
+            android:textColor="#08090B"
+            android:textSize="12sp" />
+
+        <TextView
+        android:includeFontPadding="false"
+            android:id="@+id/w_start50"
+            android:layout_width="0dp"
+            android:layout_height="40dp"
+            android:layout_weight="1"
+            android:background="@drawable/widget_btn_bg"
+            android:fontFamily="monospace"
+            android:gravity="center"
+            android:text="50 мин"
+            android:textColor="#E8E2D6"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/w_live_actions"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+        android:includeFontPadding="false"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="monospace"
+                android:letterSpacing="0.1"
+                android:text="ОСТАЛОСЬ"
+                android:textColor="#8A857B"
+                android:textSize="9sp" />
+
+            <Chronometer
+        android:includeFontPadding="false"
+                android:id="@+id/w_remain"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="monospace"
+                android:textColor="#E8E2D6"
+                android:textSize="16sp" />
+        </LinearLayout>
+
+        <TextView
+        android:includeFontPadding="false"
+            android:id="@+id/w_finish"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:background="@drawable/widget_btn_bg"
+            android:fontFamily="monospace"
+            android:gravity="center"
+            android:paddingStart="18dp"
+            android:paddingEnd="18dp"
+            android:text="Завершить"
+            android:textColor="#E8E2D6"
+            android:textSize="12sp" />
+    </LinearLayout>
+</LinearLayout>

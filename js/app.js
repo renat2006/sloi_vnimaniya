@@ -51,15 +51,44 @@ const buzz = (pattern) => {
   } catch {}
 };
 
+const LAYER_KIND = { focus: 0, permitted: 1, drift: 2 };
+const DAY = 86400000;
+
+function dayStats() {
+  const startOfDay = (t) => {
+    const d = new Date(t);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  };
+  const today = startOfDay(Date.now());
+  const days = new Set();
+  let todayMs = 0;
+  store.list().forEach((c) => {
+    const d = startOfDay(c.startedAt);
+    days.add(d);
+    if (d === today) todayMs += Math.round((c.metrics ? c.metrics.depth : 1) * c.durationMs);
+  });
+  let d = days.has(today) ? today : days.has(today - DAY) ? today - DAY : null;
+  let streak = 0;
+  while (d !== null && days.has(d)) {
+    streak++;
+    d -= DAY;
+  }
+  return { todayMs, streak };
+}
+
 function widgetSync(result) {
   if (!native.isNative) return;
   const live = !!session && !session.ended;
   const st = {
     active: live,
     drift: live && !focused,
+    live: !!cfg.notify,
     startedAt: live ? session.startedAt : 0,
     capacityMs: live ? session.capacityMs : 0,
-    task: live ? session.task || '' : ''
+    task: live ? session.task || '' : '',
+    layers: live ? session.layers.map((l) => [LAYER_KIND[l.type] ?? 0, l.start, l.end]) : [],
+    ...dayStats()
   };
   if (result) Object.assign(st, result);
   native.widget(st);
@@ -100,6 +129,11 @@ store.setWriteErrorHandler(() => {
 
 async function holdScreen(on) {
   wantAwake = on;
+  if (native.isNative) {
+    native.keepAwake(on);
+    $('#awake-badge').classList.toggle('is-on', !!on && !!session && !session.ended);
+    return;
+  }
   try {
     if (on && 'wakeLock' in navigator && !wakeLock) {
       wakeLock = await navigator.wakeLock.request('screen');
@@ -731,7 +765,8 @@ function finish(auto) {
   widgetSync({
     lastDepth: Math.round((Number(m.depth) || 0) * 100),
     lastMs: e,
-    lastBreaks: Math.round(Number(m.breaks) || 0)
+    lastBreaks: Math.round(Number(m.breaks) || 0),
+    lastLayers: layers.map((l) => [LAYER_KIND[l.type] ?? 0, Math.max(0, l.end - l.start)])
   });
   if (session.witnessed) {
     presence.publish(lastCore, cfg.name).then((ok) => {
@@ -955,8 +990,9 @@ $('#notify').addEventListener('change', async (e) => {
   if (e.target.checked && native.isNative) {
     if (await native.enableReminders()) {
       cfg = store.setConfig({ notify: true });
-      toast('Напомним, когда время выйдет.');
+      toast('Таймер появится в шторке, а по окончании придёт сигнал.');
       if (session && !session.ended) sendPushSubscribe();
+      widgetSync();
     } else {
       e.target.checked = false;
       toast('Уведомления не разрешены в настройках Android.');
@@ -1009,6 +1045,7 @@ $('#notify').addEventListener('change', async (e) => {
   } else {
     cfg = store.setConfig({ notify: false });
     if (session && !session.ended) sendPushCancel();
+    widgetSync();
   }
 });
 $('#again').addEventListener('click', () => {
@@ -1366,17 +1403,45 @@ if (notifyEl) notifyEl.checked = !!cfg.notify;
 renderOath();
 const resumed = resume();
 
-function openTarget(target) {
+function quickStart(min) {
+  if (session && !session.ended) {
+    go('stage');
+    return;
+  }
+  capacityMin = [2, 15, 25, 50].includes(min) ? min : 25;
+  $('#task').value = cfg.lastTask || '';
+  begin();
+}
+
+function openTarget(target, arg) {
   if (target === 'stage') go(session ? 'stage' : 'ritual');
-  else if (['ritual', 'archive', 'room', 'method'].includes(target)) go(target);
+  else if (target === 'start') quickStart(+(arg && arg.min));
+  else if (target === 'finish') {
+    if (session && !session.ended) {
+      go('stage');
+      finish(false);
+    } else go(session ? 'stage' : 'ritual');
+  } else if (target === 'guest') {
+    if (takeGuest(arg)) {
+      go('room');
+      renderRoom();
+    }
+  } else if (['ritual', 'archive', 'room', 'method'].includes(target)) go(target);
 }
 
 const wanted = new URLSearchParams(location.search).get('go');
 if (wanted) {
-  openTarget(wanted);
+  openTarget(wanted, Object.fromEntries(new URLSearchParams(location.search)));
   history.replaceState(null, '', location.pathname);
 }
 native.onOpen(openTarget);
+native.onBack(() => {
+  const v = body.dataset.view;
+  if (body.dataset.sheet === '1') sheet(false);
+  else if (v === 'stage' && session && !session.ended) native.minimize();
+  else if (v !== 'intro') go('intro');
+  else native.minimize();
+});
 if (native.isNative) $('#android-link')?.remove();
 {
   const pin = $('#pin-widget');
@@ -1386,6 +1451,20 @@ if (native.isNative) $('#android-link')?.remove();
       const ok = await native.pinWidget();
       if (!ok) toast('Добавьте виджет вручную: долгое нажатие на экране → Виджеты → Слои внимания.', 5000);
     });
+  }
+  const tile = $('#add-tile');
+  if (tile && native.isNative) {
+    tile.style.display = '';
+    tile.addEventListener('click', async () => {
+      const r = await native.addTile();
+      if (!r || r.supported === false) toast('Плитку можно добавить вручную: шторка → карандаш → «Слои внимания».', 5000);
+      else if (r.result === 1) toast('Плитка уже в быстрых настройках.');
+      else if (r.result === 2) toast('Плитка добавлена в быстрые настройки.');
+    });
+  }
+  const notifyLabel = $('#notify')?.closest('.switch')?.querySelector('.sw-txt');
+  if (notifyLabel && native.isNative) {
+    notifyLabel.innerHTML = 'Уведомления сеанса<i>таймер в шторке и сигнал, когда время выйдет</i>';
   }
 }
 widgetSync();

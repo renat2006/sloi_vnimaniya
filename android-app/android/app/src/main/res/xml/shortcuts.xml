@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="start25"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_flask"
+        android:shortcutShortLabel="@string/sc_start_short"
+        android:shortcutLongLabel="@string/sc_start_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="https://sloi.renat.site/?go=start&amp;min=25"
+            android:targetClass="site.renat.sloi.MainActivity"
+            android:targetPackage="site.renat.sloi" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="room"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_flask"
+        android:shortcutShortLabel="@string/sc_room_short"
+        android:shortcutLongLabel="@string/sc_room_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="https://sloi.renat.site/?go=room"
+            android:targetClass="site.renat.sloi.MainActivity"
+            android:targetPackage="site.renat.sloi" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="archive"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_flask"
+        android:shortcutShortLabel="@string/sc_archive_short"
+        android:shortcutLongLabel="@string/sc_archive_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="https://sloi.renat.site/?go=archive"
+            android:targetClass="site.renat.sloi.MainActivity"
+            android:targetPackage="site.renat.sloi" />
+    </shortcut>
+</shortcuts>

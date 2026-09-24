@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "site.renat.sloi",
+      "sha256_cert_fingerprints": [
+        "5E:ED:08:2C:57:81:C8:B8:55:C2:32:69:DC:53:55:44:BC:39:C0:C1:D6:9C:52:79:F8:37:66:62:6F:75:A5:CA"
+      ]
+    }
+  }
+]

@@ -26,7 +26,7 @@ try {
   }
   check('health', (await fetch(B + '/presence/health')).status === 200);
 
-  for (const p of ['/', '/index.html', '/styles.css', '/sw.js', '/manifest.webmanifest', '/js/app.js', '/js/native.js', '/icons/icon-192.png', '/download/']) {
+  for (const p of ['/', '/index.html', '/styles.css', '/sw.js', '/manifest.webmanifest', '/js/app.js', '/js/native.js', '/icons/icon-192.png', '/download/', '/.well-known/assetlinks.json']) {
     const r = await fetch(B + p);
     check(`static ${p}`, r.status === 200, String(r.status));
   }

@@ -4,6 +4,12 @@
     <string name="title_activity_main">Слои внимания</string>
     <string name="package_name">site.renat.sloi</string>
     <string name="custom_url_scheme">site.renat.sloi</string>
-    <string name="widget_description">Идущий сеанс или последний керн</string>
+    <string name="widget_description">Таймер сеанса, колба со слоями и быстрый старт</string>
     <string name="sloi_base_url" translatable="false">https://sloi.renat.site</string>
+    <string name="sc_start_short">Начать 25 мин</string>
+    <string name="sc_start_long">Начать сеанс на 25 минут</string>
+    <string name="sc_room_short">Зал</string>
+    <string name="sc_room_long">Открыть зал присутствия</string>
+    <string name="sc_archive_short">Архив</string>
+    <string name="sc_archive_long">Архив кернов</string>
 </resources>
