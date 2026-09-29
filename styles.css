@@ -929,3 +929,114 @@ body[data-view="stage"][data-phase="live"] .snd-fab { display: grid; }
 body[data-view="stage"][data-phase="live"] #sound, body[data-view="stage"][data-phase="live"] .topbar > .sound { display: none; }
 .snd-fab .eq { height: 16px; }
 .snd-fab .eq i { width: 2px; }
+
+/* ── quiet modern interface ──────────────────────────────────────────── */
+:root {
+  --surface: rgba(232, 226, 214, 0.045);
+  --surface-strong: rgba(232, 226, 214, 0.075);
+  --line-soft: rgba(232, 226, 214, 0.105);
+  --warm-soft: rgba(233, 223, 199, 0.12);
+}
+
+body { font-size: 14px; }
+.frame { inset: 18px; border-color: rgba(232,226,214,0.055); }
+.topbar { padding: 22px 34px; }
+.topbar::before { inset: 0 0 -34px; background: linear-gradient(to bottom, rgba(8,9,11,.98), rgba(8,9,11,.88) 58%, transparent); }
+.brand { letter-spacing: .2em; font-weight: 400; }
+.mark { width: 8px; height: 18px; border-radius: 2px; box-shadow: 0 0 18px rgba(143,196,210,.12); }
+.nav { gap: 8px; padding: 4px; border: 1px solid var(--line-soft); border-radius: 999px; background: rgba(8,9,11,.36); backdrop-filter: blur(14px); }
+.nav .lnk { padding: 9px 13px; border-radius: 999px; letter-spacing: .13em; }
+.nav .lnk::after { display: none; }
+.nav .lnk.is-on { background: var(--surface-strong); color: var(--bone); }
+.live-dot { display: inline-block; width: 5px; height: 5px; margin-left: 7px; vertical-align: middle; border-radius: 50%; background: var(--cold); box-shadow: 0 0 0 3px rgba(143,196,210,.1); }
+.sound { padding: 9px 12px; border: 1px solid transparent; border-radius: 999px; }
+.sound:hover { border-color: var(--line-soft); background: var(--surface); }
+
+.view { padding: 92px 34px 34px; }
+.intro-grid { gap: clamp(42px, 7vw, 112px); }
+.intro-left { position: relative; }
+h1 { font-size: clamp(58px, 8vw, 124px); letter-spacing: -.045em; }
+.statement { gap: 12px; }
+.statement p { font-size: clamp(17px, 1.35vw, 21px); line-height: 1.5; }
+.statement p:not(:first-child) { color: rgba(232,226,214,.62); }
+.fold { border: 1px solid var(--line-soft); border-radius: 12px; padding: 0 14px; background: rgba(232,226,214,.018); }
+.fold summary { padding: 14px 0; }
+.legend { margin: 14px 0 12px; border-top: 1px solid var(--line-soft); }
+.starter { margin-top: 28px; }
+.cta { border-radius: 999px; padding: 17px 28px; background: var(--bone); color: var(--ink); border-color: var(--bone); font-weight: 400; box-shadow: 0 8px 30px rgba(0,0,0,.18); }
+.cta em { background: #fff; }
+.cta span { color: var(--ink); }
+.starter .lnk { letter-spacing: .14em; }
+
+.view--ritual, .view--method { padding-top: 82px; }
+.ritual { width: min(700px, 100%); }
+.ritual-h { font-size: clamp(38px, 5vw, 58px); letter-spacing: -.025em; margin-bottom: 28px; }
+.vow { gap: 16px; }
+.vow > .field { padding: 14px 16px 2px; border: 1px solid var(--line-soft); border-radius: 14px; background: var(--surface); }
+.vow input { border: 0; font-size: 24px; padding: 3px 0 12px; }
+.opts { margin-top: 4px; border: 1px solid var(--line-soft); border-radius: 14px; overflow: hidden; background: rgba(232,226,214,.018); }
+.opts > li { border-color: var(--line-soft); padding: 0 16px; }
+.opt, .opt-fold > summary { min-height: 68px; }
+.opt-k { font-size: 10px; letter-spacing: .16em; }
+.opt-v { font-size: 21px; }
+.opt:hover, .opt-fold > summary:hover { background: rgba(232,226,214,.025); }
+.opt-body { padding-bottom: 18px; }
+.ritual-go { border-top: 0; padding-top: 14px; }
+.ritual-go .cta { min-width: 180px; }
+.pick { border-radius: 10px; }
+.pick.is-on { box-shadow: 0 0 0 3px rgba(233,223,199,.1); }
+
+.view--stage { gap: 28px; grid-template-columns: 220px minmax(0, 1fr) 290px; }
+.rail { border: 1px solid var(--line-soft); border-radius: 16px; padding: 16px; background: rgba(232,226,214,.018); }
+.rail--left { padding-bottom: 18px; }
+.vessel-wrap { border: 1px solid var(--line-soft); border-radius: 20px; background: radial-gradient(circle at 50% 50%, rgba(232,226,214,.035), transparent 60%); }
+.state { border-bottom-color: var(--line-soft); }
+.ro { border-bottom-color: var(--line-soft); }
+.journal-head { border-bottom-color: var(--line-soft); }
+.journal li { border-bottom-color: var(--line-soft); }
+.stage-actions { padding-top: 12px; }
+.ghost { border-radius: 999px; padding: 11px 16px; }
+.wall-label { padding: 4px; }
+
+.view--archive, .view--room { padding-left: 34px; padding-right: 34px; }
+.arc-head { border-bottom-color: var(--line-soft); }
+.card { border-color: var(--line-soft); border-radius: 0; }
+.tabs { border-radius: 999px; overflow: hidden; border-color: var(--line-soft); }
+.tab { padding: 11px 16px; }
+.tab.is-on { background: var(--bone); }
+
+.toast { border-radius: 999px; box-shadow: 0 12px 35px rgba(0,0,0,.3); }
+
+@media (max-width: 980px) {
+  .topbar { padding: max(8px, env(safe-area-inset-top)) 16px 8px; }
+  .nav { gap: 0; padding: 0; border: 0; border-radius: 0; background: rgba(10,12,15,.9); }
+  .nav .lnk { border-radius: 0; }
+  .nav .lnk.is-on { background: rgba(232,226,214,.05); }
+  .view { padding-left: 18px; padding-right: 18px; }
+  .vow > .field { padding: 12px 14px 0; }
+  .opts { border-radius: 14px; }
+  .view--stage { gap: 10px; }
+  .rail { border-radius: 14px; padding: 12px 14px; }
+  .vessel-wrap { border-radius: 16px; }
+}
+
+@media (max-width: 680px) {
+  .topbar { padding-left: 12px; padding-right: 12px; }
+  .brand .mark { width: 7px; }
+  .topbar > .sound { margin-right: 0; border: 0; }
+  .view { padding-left: 16px; padding-right: 16px; }
+  .intro-grid { gap: 26px; }
+  h1 { font-size: clamp(50px, 16vw, 72px); margin-top: 16px; }
+  .statement p { font-size: 17px; }
+  .fold { border-radius: 10px; }
+  .cta { min-height: 52px; }
+  .ritual-h { font-size: 40px; margin-bottom: 22px; }
+  .opt, .opt-fold > summary { min-height: 66px; }
+  .ritual-go { padding-bottom: calc(22px + env(safe-area-inset-bottom)); }
+  .ritual-go .cta { min-width: 0; }
+  .view--archive, .view--room { padding-left: 16px; padding-right: 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav, .rail, .vessel-wrap { backdrop-filter: none; }
+}
