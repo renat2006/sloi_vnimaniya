@@ -123,10 +123,11 @@
     <div class="ritual">
       <p class="overline">Новый сеанс</p>
       <h2 class="ritual-h">Над чем работаете?</h2>
+      <p class="elsewhere" id="session-elsewhere" hidden>Сеанс уже открыт в другой вкладке. Вернитесь туда, чтобы продолжить.</p>
 
       <div class="vow">
         <label class="field">
-          <input id="task" maxlength="70" placeholder="глава 2 · разбор данных · эскизы" autocomplete="off" aria-label="Над чем работаете">
+          <input id="task" maxlength="70" placeholder="что хотите сделать? например: разобрать статью" autocomplete="off" aria-label="Над чем работаете">
         </label>
 
         <ul class="opts">
@@ -205,8 +206,8 @@
       <div class="state" id="state"><span class="dot"></span><span class="state-name">Фокус</span></div>
       <p class="task-line" id="task-line"></p>
       <div class="readouts">
-        <div class="ro ro--big"><dt>Слой сейчас</dt><dd id="ro-run">00:00</dd></div>
-        <div class="ro"><dt>Прошло</dt><dd id="ro-time">00:00</dd></div>
+        <div class="ro ro--big"><dt>Сейчас</dt><dd id="ro-run">00:00</dd></div>
+        <div class="ro"><dt>Осталось</dt><dd id="ro-time">25:00</dd></div>
         <div class="ro ro--hide"><dt title="Доля времени сеанса в непрерывном фокусе">Глубина фокуса <span class="hint" tabindex="0" title="Доля времени сеанса в непрерывном фокусе">?</span></dt><dd id="ro-depth">100%</dd></div>
         <div class="ro"><dt>Разрывов</dt><dd id="ro-breaks">0</dd></div>
         <div class="ro ro--hide"><dt title="Мера раздробленности внимания от 0 (монолит) до 1">Индекс дробления <span class="hint" tabindex="0" title="Мера раздробленности внимания от 0 (монолит) до 1">?</span></dt><dd id="ro-frag">0.00</dd></div>
@@ -217,7 +218,6 @@
     <div class="vessel-wrap">
       <canvas id="vessel"></canvas>
       <div class="tip" id="tip"></div>
-      <button class="snd-fab" id="snd-fab" aria-label="Звук" aria-haspopup="dialog"><span class="eq"><i></i><i></i><i></i></span></button>
       <div class="stage-badges">
         <span class="badge" id="awake-badge">экран не гаснет</span>
         <span class="badge" id="witness-badge"></span>
@@ -232,6 +232,7 @@
       <ol class="journal" id="journal"></ol>
       <div class="stage-actions">
         <button class="ghost" id="journal-toggle">Журнал</button>
+        <button class="ghost snd-fab" id="snd-fab" aria-label="Звук" aria-haspopup="dialog"><span class="eq"><i></i><i></i><i></i></span><span>Звук</span></button>
         <button class="ghost" id="park" title="Записать мысль и вернуться к работе">Отложить мысль</button>
         <button class="ghost" id="finish" title="Завершить и извлечь керн">Завершить</button>
       </div>
@@ -327,11 +328,11 @@
 <div class="ask" id="ask">
   <div class="ask-box">
     <p class="overline">Разрыв <span id="ask-dur"></span></p>
-    <h3>Что перехватило внимание?</h3>
-    <p class="ask-sub">Слой уже отложен — ответ меняет его породу, но не длину. Отвечать не обязательно.</p>
-    <p class="lbl ask-lbl" id="ask-lbl-in">В круге разрешённого</p>
+    <h3>Вы вернулись</h3>
+    <p class="ask-sub">Можно отметить причину, чтобы лучше увидеть свой ритм. Это не оценка.</p>
+    <p class="lbl ask-lbl" id="ask-lbl-in">По делу</p>
     <div class="ask-chips" id="ask-chips"></div>
-    <p class="lbl ask-lbl">Вне круга</p>
+    <p class="lbl ask-lbl">Увело в сторону</p>
     <div class="ask-chips" id="ask-why">
       <button type="button" class="chip" data-why="thought">Мысль</button>
       <button type="button" class="chip" data-why="phone">Телефон</button>
@@ -361,11 +362,12 @@
 <div class="ask" id="confirm">
   <div class="ask-box">
     <p class="overline">Колба заполнена на <span id="cf-pct"></span></p>
-    <h3>Извлечь керн сейчас?</h3>
-    <p class="ask-sub">Слой оборвётся на этом месте. Керн сохранится в архиве, но останется незавершённым.</p>
+    <h3>Сохранить этот срез?</h3>
+    <p class="ask-sub">Сеанс завершится сейчас и появится в архиве как незавершённый.</p>
     <div class="ask-actions">
-      <button class="ghost" id="cf-yes">Извлечь</button>
+      <button class="ghost" id="cf-yes">Сохранить</button>
       <button class="ghost" id="cf-no">Продолжить сеанс</button>
+      <button class="ghost tertiary" id="cf-abort">Отменить без сохранения</button>
     </div>
   </div>
 </div>

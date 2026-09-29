@@ -21,6 +21,7 @@ export function fmtShort(ms) {
 
 export function createSession(capacityMs, task) {
   return {
+    id: 'c' + (globalThis.crypto?.randomUUID?.() || Date.now().toString(36) + Math.random().toString(36).slice(2)),
     capacityMs,
     task: task || '',
     startedAt: Date.now(),

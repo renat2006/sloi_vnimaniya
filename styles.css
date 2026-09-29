@@ -927,5 +927,21 @@ body[data-view="stage"][data-phase="live"] .snd-fab { display: grid; }
 
 /* во время сеанса звук живёт у колбы, в шапке его не дублируем */
 body[data-view="stage"][data-phase="live"] #sound, body[data-view="stage"][data-phase="live"] .topbar > .sound { display: none; }
-.snd-fab .eq { height: 16px; }
-.snd-fab .eq i { width: 2px; }
+.snd-fab {
+  position: static; width: auto; height: auto; display: none; place-items: center;
+  gap: 7px; border: 1px solid var(--line); border-radius: 0; background: none;
+  backdrop-filter: none; padding: 11px 15px;
+}
+body[data-view="stage"][data-phase="live"] .snd-fab { display: inline-flex; }
+.snd-fab .eq { height: 10px; }
+.snd-fab .eq i { width: 1.5px; }
+.snd-fab[aria-pressed="true"] .eq i { animation: eq 1.1s ease-in-out infinite; }
+.ask-actions .tertiary { flex-basis: 100%; border-color: transparent; padding-top: 6px; padding-bottom: 6px; }
+.ask-actions .tertiary:hover { color: var(--cold); background: transparent; }
+.elsewhere { margin: -8px 0 14px; padding: 11px 14px; border-left: 1px solid var(--cold); color: var(--dim); font-size: 11.5px; line-height: 1.55; }
+.elsewhere[hidden] { display: none; }
+
+@media (max-width: 980px) {
+  .stage-actions { flex-wrap: wrap; }
+  .stage-actions .snd-fab { flex: 1 1 calc(50% - 4px); }
+}

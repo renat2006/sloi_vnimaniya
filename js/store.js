@@ -67,6 +67,7 @@ export function list() {
 
 export function save(core) {
   const arr = list();
+  if (arr.some((c) => c.id === core.id)) return core;
   arr.push(core);
   write(KEY, arr.slice(-160));
   const c = config();
@@ -86,22 +87,29 @@ export function saveLive(session, elapsedMs, owner) {
   if (!session || session.ended) return false;
   const existing = read(LIVE, null);
   if (existing && existing.owner && owner && existing.owner !== owner) {
-    const age = Date.now() - (existing.savedAt || 0);
-    if (age < 6000) {
-      return false;
-    }
+    return false;
   }
   return write(LIVE, {
     owner: owner || null,
+    id: session.id,
     capacityMs: session.capacityMs,
     task: session.task,
     startedAt: session.startedAt,
     witnessed: session.witnessed,
     layers: session.layers,
     notes: session.notes || [],
+    snd: session.snd,
     elapsedMs,
     savedAt: Date.now()
   });
+}
+
+// Call only after acquiring SessionOwner. Keep savedAt unchanged so the gap
+// between page teardown and restoration remains part of the recorded layers.
+export function claimLive(owner) {
+  const existing = loadLive();
+  if (existing) return write(LIVE, { ...existing, owner });
+  return true;
 }
 
 export function loadLive() {

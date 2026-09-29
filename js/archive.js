@@ -118,7 +118,7 @@ const SND = { off: 'тишина', flow: 'поток', deep: 'глубина', l
 const WHY = { thought: 'мысль', phone: 'телефон', noise: 'шум', tired: 'усталость', other: 'другое' };
 
 export function soundLine(cores) {
-  const real = cores.filter((c) => c.metrics && c.durationMs > 20000 && c.snd);
+  const real = cores.filter((c) => c.metrics && c.durationMs > 20000 && c.snd && c.snd !== 'mixed');
   const by = {};
   real.forEach((c) => (by[c.snd] = by[c.snd] || []).push(c));
   const kinds = Object.keys(by);

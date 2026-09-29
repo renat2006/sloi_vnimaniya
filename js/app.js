@@ -9,10 +9,12 @@ import * as store from './store.js';
 import * as archive from './archive.js';
 import { native } from './native.js';
 import { initUpdates } from './updates.js';
+import { SessionOwner } from './session-owner.js';
 
 const $ = (s) => document.querySelector(s);
 const body = document.body;
 const ME = 'm' + Math.random().toString(36).slice(2, 9);
+const owner = new SessionOwner({ id: ME });
 
 const amb = new Ambience();
 let cfg = store.config();
@@ -32,7 +34,8 @@ let wakeLock = null;
 let wantAwake = true;
 let warnedAwake = false;
 let ruptureTimer = null;
-let otherTabWarned = false;
+let returnTimer = null;
+let confirmReturn = null;
 let lastPresenceStatus = 'offline';
 let lastDegradedToastAt = 0;
 let hadLink = false;
@@ -113,15 +116,27 @@ function clearBadgeCount() {
 }
 
 function persistLive(elapsedMs) {
-  if (!session || session.ended) return;
-  const ok = store.saveLive(session, elapsedMs, ME);
-  if (!ok && !otherTabWarned) {
-    const existing = store.loadLive();
-    if (existing && existing.owner && existing.owner !== ME && (Date.now() - (existing.savedAt || 0) < 6000)) {
-      otherTabWarned = true;
-      toast('Сеанс уже идёт в другой вкладке.');
-    }
+  if (!session || session.ended || !ensureOwner()) return;
+  store.saveLive(session, elapsedMs, ME);
+}
+
+function ensureOwner() {
+  if (owner.touch()) return true;
+  if (session && !session.ended) {
+    // A former owner must not save a core or cancel the new owner's reminder.
+    session = null;
+    clearTimeout(ruptureTimer);
+    answer(null);
+    closeConfirm();
+    stage.stop();
+    amb.leave();
+    presence.leave();
+    holdScreen(false);
+    body.dataset.drift = '0';
+    go('ritual');
   }
+  $('#session-elsewhere').hidden = false;
+  return false;
 }
 
 store.setWriteErrorHandler(() => {
@@ -415,7 +430,11 @@ function sendPushCancel() {
   }
 }
 
-function begin() {
+async function begin() {
+  if (session && !session.ended) { go('stage'); return; }
+  if (!await owner.acquire()) { ensureOwner(); return; }
+  if (store.loadLive()) { await resume(); return; }
+  $('#session-elsewhere').hidden = true;
   const task = $('#task').value.trim();
   cfg = store.setConfig({ lastTask: task, lastMin: capacityMin });
   session = createSession(capacityMin * 60000, task);
@@ -427,6 +446,7 @@ function begin() {
   $('#cap-label').textContent = `колба ${capacityMin} мин`;
   $('.state-name').textContent = 'Фокус';
   $('#task-line').textContent = task ? `« ${task} »` : '';
+  $('#ro-time').textContent = fmt(session.capacityMs);
   $('#rail-note').textContent = cfg.circle.length
     ? `Круг: ${cfg.circle.join(' · ')}`
     : 'Круг пуст — любой уход станет разрывом.';
@@ -456,6 +476,8 @@ function begin() {
 
 function setFocused(v) {
   if (!session || session.ended || v === focused) return;
+  if (!ensureOwner()) return;
+  if (!v) answer(null);
   focused = v;
   const at = elapsed(session);
   switchState(session, v ? 'focus' : 'drift', at);
@@ -472,7 +494,7 @@ function setFocused(v) {
     amb.ping();
     document.title = 'Слои внимания';
     const last = lastClosedDrift(session);
-    if (last && last.end - last.start >= ASK_AFTER_MS) {
+    if (last && last.end === at && last.end - last.start >= ASK_AFTER_MS) {
       pendingDrift = last;
       ask(last.end - last.start);
     }
@@ -495,19 +517,29 @@ function setFocused(v) {
   journal();
 }
 
-function resume() {
+async function resume() {
   const v = store.loadLive();
   if (!v) return false;
+  if (!await owner.acquire()) {
+    $('#session-elsewhere').hidden = false;
+    go('ritual');
+    return false;
+  }
+  $('#session-elsewhere').hidden = true;
   const gap = Math.max(0, Date.now() - v.savedAt);
   if (gap > 6 * 3600000) {
     store.dropLive();
+    owner.release();
     return false;
   }
+  store.claimLive(ME);
   session = createSession(v.capacityMs, v.task);
+  session.id = v.id || 'c' + v.startedAt.toString(36);
   session.startedAt = v.startedAt;
   session.witnessed = !!v.witnessed;
   session.layers = v.layers;
   session.notes = Array.isArray(v.notes) ? v.notes.slice(0, 20) : [];
+  session.snd = v.snd || 'off';
 
   const open = session.layers[session.layers.length - 1];
   if (open) {
@@ -530,11 +562,13 @@ function resume() {
   $('.state-name').textContent = 'Разрыв';
   body.dataset.phase = 'live';
   body.dataset.drift = '1';
+  amb.enter();
   stage.setDrift(true);
   stage.attach(session);
   stage.targetMs = cfg.bestMs > 0 ? cfg.bestMs : null;
   journal();
   go('stage');
+  persistLive(curElapsed);
 
   if (curElapsed >= session.capacityMs) {
     finish(true);
@@ -551,11 +585,13 @@ function resume() {
 const WHY_LABEL = { thought: 'мысль', phone: 'телефон', noise: 'шум', tired: 'усталость', other: 'другое' };
 
 function ask(durMs) {
+  clearTimeout(returnTimer);
   $('#ask-dur').textContent = fmtShort(durMs);
   const box = $('#ask-chips');
   box.innerHTML = '';
   cfg.circle.forEach((name) => {
-    const el = document.createElement('span');
+    const el = document.createElement('button');
+    el.type = 'button';
     el.className = 'chip';
     el.innerHTML = `<b>${esc(name)}</b>`;
     el.addEventListener('click', () => answer(name));
@@ -564,9 +600,12 @@ function ask(durMs) {
   $('#ask-lbl-in').hidden = !cfg.circle.length;
   box.hidden = !cfg.circle.length;
   $('#ask').classList.add('is-on');
+  returnTimer = setTimeout(() => answer(null), 12000);
 }
 
 function answer(name, why) {
+  clearTimeout(returnTimer);
+  returnTimer = null;
   if (why && pendingDrift && pendingDrift.type === 'drift') {
     pendingDrift.why = why;
     journal();
@@ -604,6 +643,7 @@ function journal() {
 
 function hud() {
   if (!session || session.ended) return;
+  if (!ensureOwner()) return;
   const now = performance.now();
   if (now - hudAt < 150) return;
   hudAt = now;
@@ -618,7 +658,7 @@ function hud() {
   const m = metricsOf(layers, trueMs);
   const run = currentRunMs(layers, trueMs);
   $('#ro-run').textContent = fmt(run);
-  $('#ro-time').textContent = fmt(trueMs);
+  $('#ro-time').textContent = fmt(Math.max(0, session.capacityMs - trueMs));
   $('#ro-depth').textContent = Math.round(m.depth * 100) + '%';
   $('#ro-breaks').textContent = m.breaks;
   $('#ro-frag').textContent = m.fragmentation.toFixed(2);
@@ -742,11 +782,12 @@ function updateBadge() {
 
 function finish(auto) {
   if (!session || session.ended) return;
+  if (!ensureOwner()) return;
   const e = Math.min(session.capacityMs, elapsed(session));
-  if (e < 5000) {
-    toast('слой ещё не отложился');
-    return;
-  }
+  if (e < 1) { abortSession(); return; }
+  closeConfirm();
+  parkOpen(false);
+  sheet(false);
   answer(null);
   clearTimeout(ruptureTimer);
   ruptureTimer = null;
@@ -758,7 +799,7 @@ function finish(auto) {
   const m = metricsOf(layers, e);
   lastIndex = store.list().length + 1;
   lastCore = store.save({
-    id: 'c' + Date.now().toString(36),
+    id: session.id,
     startedAt: session.startedAt,
     capacityMs: session.capacityMs,
     durationMs: e,
@@ -771,6 +812,7 @@ function finish(auto) {
   });
   cfg = store.config();
   store.dropLive(ME);
+  owner.release();
   widgetSync({
     lastDepth: Math.round((Number(m.depth) || 0) * 100),
     lastMs: e,
@@ -810,7 +852,7 @@ function finish(auto) {
     'Разрывов': 'Количество уходов за пределы разрешённого круга',
     'Переходов в круге': 'Количество переключений на разрешённые задачи',
     'Длиннейший слой': 'Самый долгий непрерывный отрезок работы без разрывов',
-    'Потеряно': 'Суммарное время отсутствия вне круга',
+    'Вне задачи': 'Время уходов, которые не были отмечены как переходы по делу',
     'Дымка возвращения': 'Время восстановления концентрации после переключений',
     'Индекс дробления': 'Мера раздробленности внимания от 0 (монолит) до 1',
     'Свидетели': 'Проходил ли сеанс с подключением к залу присутствия'
@@ -821,7 +863,7 @@ function finish(auto) {
     ['Разрывов', String(m.breaks)],
     ['Переходов в круге', String(m.transitions)],
     ['Длиннейший слой', fmt(m.longest)],
-    ['Потеряно', fmt(m.driftMs)],
+    ['Вне задачи', fmt(m.driftMs)],
     ['Дымка возвращения', fmt(m.residueMs)],
     ['Индекс дробления', m.fragmentation.toFixed(2)],
     ['Свидетели', session.witnessed ? 'да' : 'нет']
@@ -838,6 +880,35 @@ function finish(auto) {
   const notes = (lastCore && lastCore.notes) || [];
   notesEl.innerHTML = notes.map((n) => `<li>${esc(n.text)}</li>`).join('');
   notesEl.hidden = !notes.length;
+}
+
+function abortSession() {
+  if (!session || session.ended) return;
+  if (!ensureOwner()) return;
+  clearTimeout(ruptureTimer);
+  ruptureTimer = null;
+  answer(null);
+  closeConfirm();
+  parkOpen(false);
+  sheet(false);
+  clearBadgeCount();
+  document.title = 'Слои внимания';
+  sendPushCancel();
+  presence.leave();
+  session.ended = true;
+  store.dropLive(ME);
+  owner.release();
+  stage.stop();
+  stage.setDrift(false);
+  holdScreen(false);
+  amb.leave();
+  session = null;
+  pendingDrift = null;
+  body.dataset.drift = '0';
+  body.dataset.phase = 'live';
+  widgetSync();
+  toast('сеанс отменён — керн не сохранён');
+  go('ritual');
 }
 
 function renderArchive() {
@@ -976,12 +1047,22 @@ $('#witness').addEventListener('change', (e) => {
 });
 function askFinish() {
   if (!session || session.ended) return;
+  if (!ensureOwner()) return;
+  answer(null);
+  confirmReturn = document.activeElement;
   const fill = Math.min(1, elapsed(session) / session.capacityMs);
-  if (fill >= 0.6 || elapsed(session) < 30000) return finish(false);
   $('#cf-pct').textContent = Math.round(fill * 100) + '%';
   $('#confirm').classList.add('is-on');
+  $('#cf-no').focus();
 }
 $('#finish').addEventListener('click', askFinish);
+$('#cf-abort').addEventListener('click', abortSession);
+function closeConfirm() {
+  $('#confirm').classList.remove('is-on');
+  const target = confirmReturn;
+  confirmReturn = null;
+  if (target?.isConnected) target.focus();
+}
 function parkOpen(v) {
   $('#park-box').classList.toggle('is-on', v);
   if (v) setTimeout(() => $('#park-in').focus(), 60);
@@ -1005,9 +1086,8 @@ $('#park-in').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') parkSave();
   if (e.key === 'Escape') parkOpen(false);
 });
-$('#cf-no').addEventListener('click', () => $('#confirm').classList.remove('is-on'));
+$('#cf-no').addEventListener('click', closeConfirm);
 $('#cf-yes').addEventListener('click', () => {
-  $('#confirm').classList.remove('is-on');
   finish(false);
 });
 $('#awake').addEventListener('change', (e) => {
@@ -1068,6 +1148,12 @@ async function setSound(kind) {
       ? { sound: true, soundKind: kind, [meta.group === 'music' ? 'lastMusic' : 'lastNoise']: kind }
       : { sound: false }
   );
+  if (session && !session.ended && ensureOwner()) {
+    // A session with several backgrounds should not count as evidence for
+    // the one that happened to be playing when it began.
+    if (session.snd !== kind) session.snd = 'mixed';
+    persistLive(elapsed(session));
+  }
   amb.setKind(cfg.soundKind || 'flow');
   amb.boot();
   await amb.enable(on);
@@ -1378,7 +1464,7 @@ window.addEventListener('offline', () => {
 window.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
   if (!$('#snd-pop').hidden) sndOpen(false);
-  else if ($('#confirm').classList.contains('is-on')) $('#confirm').classList.remove('is-on');
+  else if ($('#confirm').classList.contains('is-on')) closeConfirm();
   else if ($('#ask').classList.contains('is-on')) answer(null);
   else if (body.dataset.sheet === '1') sheet(false);
 });
@@ -1521,7 +1607,22 @@ if (cfg.notify && !native.isNative) {
 const notifyEl = $('#notify');
 if (notifyEl) notifyEl.checked = !!cfg.notify;
 renderOath();
-const resumed = resume();
+const resumed = await resume();
+// Rendering may stop while viewing the archive. Session time and ownership
+// continue independently of Canvas, including while the tab is hidden.
+setInterval(() => {
+  if (session && !session.ended && ensureOwner()) {
+    hud();
+    if (session && !session.ended) persistLive(elapsed(session));
+  }
+}, 2000);
+addEventListener('pagehide', (event) => {
+  if (session && !session.ended && owner.owns()) {
+    setFocused(false);
+    persistLive(elapsed(session));
+  }
+  if (!event.persisted) owner.release();
+});
 
 function quickStart(min) {
   if (session && !session.ended) {
@@ -1539,7 +1640,7 @@ function openTarget(target, arg) {
   else if (target === 'finish') {
     if (session && !session.ended) {
       go('stage');
-      finish(false);
+      askFinish();
     } else go(session ? 'stage' : 'ritual');
   } else if (target === 'guest') {
     if (takeGuest(arg)) {
