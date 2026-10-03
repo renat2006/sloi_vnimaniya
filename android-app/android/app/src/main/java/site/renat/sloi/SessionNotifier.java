@@ -44,7 +44,7 @@ final class SessionNotifier {
         if (now - lastUpdateAt < 5000 && fingerprint.equals(lastFingerprint)) return;
         lastUpdateAt = now;
         lastFingerprint = fingerprint;
-        String title = s.drift ? "Возвращение к фокусу" : "Фокус продолжается";
+        String title = s.drift ? "Слои внимания · Возврат" : "Слои внимания · Фокус";
         int breaks = breaks(s);
         int layers = s.liveSegments().length();
         String text = (s.task.isEmpty() ? "Сеанс внимания" : s.task) + " · " + SessionState.minutesRu(remaining)
@@ -58,6 +58,7 @@ final class SessionNotifier {
             .setContentTitle(title)
             .setContentText(text)
             .setSubText(sub)
+            .setLargeIcon(NotificationArtwork.draw(s, false))
             .setColor(0xFFD8CBB0)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
@@ -124,6 +125,7 @@ final class SessionNotifier {
             .setContentTitle("Керн готов")
             .setContentText(text)
             .setSubText(sub)
+            .setLargeIcon(NotificationArtwork.draw(s, true))
             .setColor(0xFFD8CBB0)
             .setCategory(NotificationCompat.CATEGORY_EVENT)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
