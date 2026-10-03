@@ -1640,7 +1640,8 @@ function openTarget(target, arg) {
   else if (target === 'finish') {
     if (session && !session.ended) {
       go('stage');
-      askFinish();
+      if (arg && arg.confirm === '1') finish(false);
+      else askFinish();
     } else go(session ? 'stage' : 'ritual');
   } else if (target === 'note') {
     if (session && !session.ended) {

@@ -79,9 +79,9 @@ final class SessionNotifier {
             .setChronometerCountDown(true)
             .setTimeoutAfter(remaining + 1500)
             .setShortCriticalText(s.drift ? "разрыв" : SessionState.minutesRu(remaining))
-            .addAction(R.drawable.ic_stat_sloi, "Сменить звук", Links.open(ctx, "music"))
+            .addAction(R.drawable.ic_action_sound, "Сменить звук", SessionActionReceiver.go(ctx, "music"))
             .addAction(noteAction(ctx));
-        b.addAction(R.drawable.ic_stat_sloi, "Завершить", Links.open(ctx, "finish"));
+        b.addAction(R.drawable.ic_action_stop, "Завершить", SessionActionReceiver.go(ctx, "finish&confirm=1"));
 
         if (Build.VERSION.SDK_INT >= 36) {
             NotificationManager platform = ctx.getSystemService(NotificationManager.class);
@@ -98,9 +98,9 @@ final class SessionNotifier {
                 .setProgress(elapsedSec)
                 .setProgressSegments(segments(s, capSec))
                 .setProgressPoints(points(s, capSec))
-                .setProgressTrackerIcon(IconCompat.createWithResource(ctx, R.drawable.ic_stat_sloi))
-                .setProgressStartIcon(IconCompat.createWithResource(ctx, R.drawable.ic_stat_sloi))
-                .setProgressEndIcon(IconCompat.createWithResource(ctx, R.drawable.ic_stat_sloi));
+                .setProgressTrackerIcon(IconCompat.createWithResource(ctx, R.drawable.ic_notification_grain))
+                .setProgressStartIcon(IconCompat.createWithResource(ctx, R.drawable.ic_notification_spark))
+                .setProgressEndIcon(IconCompat.createWithResource(ctx, R.drawable.ic_notification_core));
             b.setStyle(ps);
         } else {
             b.setProgress(capSec, elapsedSec, false);
@@ -138,21 +138,18 @@ final class SessionNotifier {
             .setAutoCancel(true)
             .setOnlyAlertOnce(true)
             .setTimeoutAfter(6 * 60 * 60 * 1000L)
-            .addAction(R.drawable.ic_stat_sloi, "Извлечь керн", Links.open(ctx, "stage"))
-            .addAction(R.drawable.ic_stat_sloi, "Ещё 5 минут", Links.open(ctx, "start&min=5"));
+            .addAction(R.drawable.ic_action_extract, "Извлечь керн", SessionActionReceiver.go(ctx, "stage"))
+            .addAction(R.drawable.ic_action_plus, "Ещё 5 минут", SessionActionReceiver.go(ctx, "start&min=5"));
         nm.notify(END_ID, b.build());
     }
 
     private static NotificationCompat.Action noteAction(Context ctx) {
-        Intent i = new Intent(ctx, SessionActionReceiver.class)
-            .setAction(SessionActionReceiver.ACTION_NOTE);
-        PendingIntent pi = PendingIntent.getBroadcast(ctx, 2002, i,
-            PendingIntent.FLAG_MUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+        PendingIntent pi = SessionActionReceiver.note(ctx);
         RemoteInput input = new RemoteInput.Builder(NOTE_KEY)
             .setLabel("Мысль, которую нужно отложить")
             .setAllowFreeFormInput(true)
             .build();
-        return new NotificationCompat.Action.Builder(R.drawable.ic_stat_sloi, "Отложить мысль", pi)
+        return new NotificationCompat.Action.Builder(R.drawable.ic_action_note, "Отложить мысль", pi)
             .addRemoteInput(input)
             .setAllowGeneratedReplies(false)
             .build();
