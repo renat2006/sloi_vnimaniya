@@ -13,9 +13,25 @@ final class Links {
     }
 
     static Intent intent(Context ctx, String query) {
+        return base(ctx, query, null);
+    }
+
+    static Intent intent(Context ctx, String go, String text) {
+        return base(ctx, go, text);
+    }
+
+    private static Intent base(Context ctx, String go, String text) {
+        Uri.Builder url = Uri.parse(ctx.getString(R.string.sloi_base_url) + "/")
+            .buildUpon();
+        for (String part : go.split("&")) {
+            int split = part.indexOf('=');
+            if (split > 0) url.appendQueryParameter(part.substring(0, split), part.substring(split + 1));
+            else if (!part.isEmpty()) url.appendQueryParameter(part, "");
+        }
+        if (text != null && !text.isEmpty()) url.appendQueryParameter("text", text);
         return new Intent(ctx, MainActivity.class)
             .setAction(Intent.ACTION_VIEW)
-            .setData(Uri.parse(ctx.getString(R.string.sloi_base_url) + "/?go=" + query))
+            .setData(url.build())
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
     }
 }

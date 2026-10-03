@@ -1642,6 +1642,19 @@ function openTarget(target, arg) {
       go('stage');
       askFinish();
     } else go(session ? 'stage' : 'ritual');
+  } else if (target === 'note') {
+    if (session && !session.ended) {
+      go('stage');
+      const text = arg && arg.text ? String(arg.text).slice(0, 140) : '';
+      if (text) {
+        $('#park-in').value = text;
+        parkSave();
+      } else {
+        parkOpen(true);
+      }
+    } else {
+      go('ritual');
+    }
   } else if (target === 'guest') {
     if (takeGuest(arg)) {
       go('room');

@@ -51,6 +51,10 @@
             android:name=".UpdateReceiver"
             android:exported="false" />
 
+        <receiver
+            android:name=".SessionActionReceiver"
+            android:exported="false" />
+
         <service
             android:name=".SloiTileService"
             android:exported="true"
