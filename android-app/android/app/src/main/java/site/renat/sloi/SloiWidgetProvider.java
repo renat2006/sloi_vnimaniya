@@ -43,10 +43,13 @@ public class SloiWidgetProvider extends AppWidgetProvider {
         String a = intent.getAction();
         if (ACTION_END.equals(a)) {
             SharedPreferences p = ctx.getSharedPreferences(SessionState.PREFS, Context.MODE_PRIVATE);
-            if (p.getBoolean("active", false)) {
+            boolean wasActive = p.getBoolean("active", false);
+            SessionState ended = SessionState.load(ctx);
+            if (wasActive) {
                 p.edit().putBoolean("active", false).putBoolean("timeUp", true).apply();
             }
             SessionNotifier.cancel(ctx);
+            if (wasActive) SessionNotifier.finished(ctx, ended);
             SloiTileService.requestRefresh(ctx);
             refreshAll(ctx);
             return;

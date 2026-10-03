@@ -9,6 +9,7 @@ import android.os.Build;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
 import androidx.core.app.RemoteInput;
+import androidx.core.graphics.drawable.IconCompat;
 import java.util.ArrayList;
 import java.util.List;
 import org.json.JSONArray;
@@ -17,7 +18,9 @@ import org.json.JSONException;
 /** Уведомление «сеанс идёт»: обратный отсчёт, слои сеанса в прогрессе, на Android 16 — Live Update в статус-баре. */
 final class SessionNotifier {
     static final String CHANNEL = "session_live";
+    static final String END_CHANNEL = "session_end";
     static final int ID = 2001;
+    static final int END_ID = 2002;
     private static final int FOCUS = 0xFFE3D2A6, STONE = 0xFFA9A88A, DRIFT = 0xFF93C8D8, TRACK = 0x33E8E2D6;
     private static final String NOTE_KEY = SessionActionReceiver.NOTE_KEY;
     private static long lastUpdateAt;
@@ -32,6 +35,7 @@ final class SessionNotifier {
             return;
         }
         ensureChannel(ctx);
+        nm.cancel(END_ID);
         long remaining = s.remaining();
         String fingerprint = s.drift + ":" + s.layers.length() + ":" + (remaining / 5000);
         long now = System.currentTimeMillis();
@@ -41,12 +45,19 @@ final class SessionNotifier {
         lastUpdateAt = now;
         lastFingerprint = fingerprint;
         String title = s.drift ? "Возвращение к фокусу" : "Фокус продолжается";
-        String text = (s.task.isEmpty() ? "Сеанс внимания" : s.task) + " · осталось " + SessionState.minutesRu(remaining);
+        int breaks = breaks(s);
+        int layers = s.liveSegments().length();
+        String text = (s.task.isEmpty() ? "Сеанс внимания" : s.task) + " · " + SessionState.minutesRu(remaining)
+            + " · " + layers + " слоёв" + (breaks > 0 ? " · разрывов " + breaks : " · без разрывов");
+        String sub = s.streak > 0
+            ? "серия " + s.streak + " дн. · сегодня " + SessionState.minutesRu(s.todayMs)
+            : "первый керн дня — уже в работе";
 
         NotificationCompat.Builder b = new NotificationCompat.Builder(ctx, CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_sloi)
             .setContentTitle(title)
             .setContentText(text)
+            .setSubText(sub)
             .setColor(0xFFD8CBB0)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
@@ -67,8 +78,10 @@ final class SessionNotifier {
             .setUsesChronometer(true)
             .setChronometerCountDown(true)
             .setTimeoutAfter(remaining + 1500)
-            .addAction(0, "Завершить", Links.open(ctx, "finish"))
+            .setShortCriticalText(s.drift ? "разрыв" : SessionState.minutesRu(remaining))
+            .addAction(R.drawable.ic_stat_sloi, "Сменить звук", Links.open(ctx, "music"))
             .addAction(noteAction(ctx));
+        b.addAction(R.drawable.ic_stat_sloi, "Завершить", Links.open(ctx, "finish"));
 
         if (Build.VERSION.SDK_INT >= 36) {
             NotificationManager platform = ctx.getSystemService(NotificationManager.class);
@@ -83,12 +96,51 @@ final class SessionNotifier {
             NotificationCompat.ProgressStyle ps = new NotificationCompat.ProgressStyle()
                 .setStyledByProgress(false)
                 .setProgress(elapsedSec)
-                .setProgressSegments(segments(s, capSec));
+                .setProgressSegments(segments(s, capSec))
+                .setProgressPoints(points(s, capSec))
+                .setProgressTrackerIcon(IconCompat.createWithResource(ctx, R.drawable.ic_stat_sloi))
+                .setProgressStartIcon(IconCompat.createWithResource(ctx, R.drawable.ic_stat_sloi))
+                .setProgressEndIcon(IconCompat.createWithResource(ctx, R.drawable.ic_stat_sloi));
             b.setStyle(ps);
         } else {
             b.setProgress(capSec, elapsedSec, false);
         }
         nm.notify(ID, b.build());
+    }
+
+    /** Уведомление о готовом керне: действие пользователя нужно, поэтому оно не ongoing. */
+    static void finished(Context ctx, SessionState s) {
+        NotificationManagerCompat nm = NotificationManagerCompat.from(ctx);
+        if (!nm.areNotificationsEnabled()) return;
+        ensureEndChannel(ctx);
+        int layerCount = s.liveSegmentsFull().length();
+        int breakCount = breaks(s);
+        String text = "Колба заполнена · " + layerCount + " слоёв · разрывов " + breakCount;
+        String sub = s.streak > 0
+            ? "серия " + s.streak + " дн. · сегодня " + SessionState.minutesRu(s.todayMs)
+            : "керн ждёт извлечения";
+        NotificationCompat.Builder b = new NotificationCompat.Builder(ctx, END_CHANNEL)
+            .setSmallIcon(R.drawable.ic_stat_sloi)
+            .setContentTitle("Керн готов")
+            .setContentText(text)
+            .setSubText(sub)
+            .setColor(0xFFD8CBB0)
+            .setCategory(NotificationCompat.CATEGORY_EVENT)
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .setPublicVersion(new NotificationCompat.Builder(ctx, END_CHANNEL)
+                .setSmallIcon(R.drawable.ic_stat_sloi)
+                .setContentTitle("Сеанс завершён")
+                .setContentText("Откройте приложение, чтобы извлечь керн")
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                .setCategory(NotificationCompat.CATEGORY_EVENT)
+                .build())
+            .setContentIntent(Links.open(ctx, "stage"))
+            .setAutoCancel(true)
+            .setOnlyAlertOnce(true)
+            .setTimeoutAfter(6 * 60 * 60 * 1000L)
+            .addAction(R.drawable.ic_stat_sloi, "Извлечь керн", Links.open(ctx, "stage"))
+            .addAction(R.drawable.ic_stat_sloi, "Ещё 5 минут", Links.open(ctx, "start&min=5"));
+        nm.notify(END_ID, b.build());
     }
 
     private static NotificationCompat.Action noteAction(Context ctx) {
@@ -127,8 +179,40 @@ final class SessionNotifier {
         return out;
     }
 
+    private static List<NotificationCompat.ProgressStyle.Point> points(SessionState s, int capSec) {
+        List<NotificationCompat.ProgressStyle.Point> out = new ArrayList<>();
+        JSONArray live = s.liveSegments();
+        int used = 0;
+        try {
+            for (int i = 0; i < live.length() - 1; i++) {
+                JSONArray seg = live.getJSONArray(i);
+                used += Math.max(1, (int) (seg.getLong(1) / 1000));
+                if (used < capSec) {
+                    int type = seg.getInt(0);
+                    out.add(new NotificationCompat.ProgressStyle.Point(used)
+                        .setColor(type == SessionState.DRIFT ? DRIFT : FOCUS));
+                }
+            }
+        } catch (JSONException ignored) {
+        }
+        return out;
+    }
+
+    private static int breaks(SessionState s) {
+        int count = 0;
+        try {
+            for (int i = 0; i < s.layers.length(); i++) {
+                if (s.layers.getJSONArray(i).getInt(0) == SessionState.DRIFT) count++;
+            }
+        } catch (JSONException ignored) {
+        }
+        return count;
+    }
+
     static void cancel(Context ctx) {
-        NotificationManagerCompat.from(ctx).cancel(ID);
+        NotificationManagerCompat nm = NotificationManagerCompat.from(ctx);
+        nm.cancel(ID);
+        nm.cancel(END_ID);
         lastUpdateAt = 0;
         lastFingerprint = "";
     }
@@ -138,6 +222,14 @@ final class SessionNotifier {
         NotificationChannel ch = new NotificationChannel(CHANNEL, "Сеанс идёт", NotificationManager.IMPORTANCE_LOW);
         ch.setDescription("Таймер и слои текущего сеанса");
         ch.setShowBadge(false);
+        ctx.getSystemService(NotificationManager.class).createNotificationChannel(ch);
+    }
+
+    private static void ensureEndChannel(Context ctx) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
+        NotificationChannel ch = new NotificationChannel(END_CHANNEL, "Окончание сеанса", NotificationManager.IMPORTANCE_DEFAULT);
+        ch.setDescription("Один сигнал, когда время сеанса вышло");
+        ch.setShowBadge(true);
         ctx.getSystemService(NotificationManager.class).createNotificationChannel(ch);
     }
 }

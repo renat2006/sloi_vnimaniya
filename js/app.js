@@ -1655,6 +1655,13 @@ function openTarget(target, arg) {
     } else {
       go('ritual');
     }
+  } else if (target === 'music') {
+    if (session && !session.ended) {
+      go('stage');
+      sndOpen(true);
+    } else {
+      go('ritual');
+    }
   } else if (target === 'guest') {
     if (takeGuest(arg)) {
       go('room');

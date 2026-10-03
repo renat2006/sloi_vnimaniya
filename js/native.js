@@ -91,25 +91,10 @@ async function pinWidget() {
 
 async function scheduleEnd(endAt) {
   if (!isNative || !(endAt > Date.now())) return;
-  await call('LocalNotifications', 'createChannel', {
-    id: 'session-end',
-    name: 'Окончание сеанса',
-    description: 'Сигнал, когда время сеанса вышло',
-    importance: 4,
-    visibility: 1,
-    vibration: true
-  });
-  call('LocalNotifications', 'schedule', {
-    notifications: [{
-      id: NOTE_ID,
-      title: 'Слои внимания',
-      body: 'Сеанс завершён — можно извлечь керн',
-      channelId: 'session-end',
-      smallIcon: 'ic_stat_sloi',
-      schedule: { at: new Date(endAt).toISOString(), allowWhileIdle: true },
-      extra: { go: 'stage' }
-    }]
-  });
+  // Конец теперь приходит из нативного AlarmManager: он показывает
+  // интерактивную карточку с «Извлечь керн» и «Ещё 5 минут».
+  // Удаляем старый Capacitor-сигнал после обновления приложения, чтобы не было дубля.
+  call('LocalNotifications', 'cancel', { notifications: [{ id: NOTE_ID }] });
 }
 
 function cancelEnd() {
